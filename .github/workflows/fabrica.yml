@@ -1,0 +1,88 @@
+name: Fabrica
+
+on:
+  schedule:
+    # horários em UTC (Brasília = UTC-3). O vídeo fica pronto na madrugada para você aprovar de manhã.
+    - cron: "0 7 * * 1,3,5"   # canal PT: seg, qua, sex 04:00 BRT
+    - cron: "0 8 * * 2,4,6"   # canal EN: ter, qui, sáb 05:00 BRT
+  workflow_dispatch:
+    inputs:
+      canal:
+        description: "Canal (pt ou en)"
+        required: true
+        default: "pt"
+      tema:
+        description: "Tema específico (opcional)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fabrica-${{ github.event.inputs.canal || github.event.schedule }}
+  cancel-in-progress: false
+
+jobs:
+  produzir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Qual canal
+        id: canal
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "canal=${{ github.event.inputs.canal }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.schedule }}" = "0 7 * * 1,3,5" ]; then
+            echo "canal=pt" >> $GITHUB_OUTPUT
+          else
+            echo "canal=en" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar ferramentas
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          pip install -q -r requirements.txt
+          curl -sSfL -o assets/fonts/Anton-Regular.ttf https://raw.githubusercontent.com/google/fonts/main/ofl/anton/Anton-Regular.ttf || true
+
+      - name: Produzir vídeo
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          CANAL: ${{ steps.canal.outputs.canal }}
+          TEMA: ${{ github.event.inputs.tema }}
+        run: |
+          if [ -n "$TEMA" ]; then
+            python -m fabrica.main --canal "$CANAL" --tema "$TEMA"
+          else
+            python -m fabrica.main --canal "$CANAL"
+          fi
+
+      - name: Publicar pacote (release)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          C=${{ steps.canal.outputs.canal }}
+          TAG="$C-$(date -u +%Y%m%d-%H%M)"
+          TITLE=$(python -c "import json;print(json.load(open('dist/$C/metadata.json'))['titulo'])")
+          gh release create "$TAG" dist/$C/* --title "[$C] $TITLE" --notes-file dist/$C/relatorio.md
+          echo "Pacote: https://github.com/${{ github.repository }}/releases/tag/$TAG" >> $GITHUB_STEP_SUMMARY
+
+      - name: Salvar histórico de temas
+        run: |
+          git config user.name "fabrica-bot"
+          git config user.email "fabrica-bot@users.noreply.github.com"
+          git add state/
+          git commit -m "histórico: ${{ steps.canal.outputs.canal }} $(date -u +%F)" || exit 0
+          git pull --rebase -q && git push -q

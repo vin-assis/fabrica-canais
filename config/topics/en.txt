@@ -1,0 +1,9 @@
+# Topic queue for the EN channel. One per line, top to bottom. When it runs out, the AI suggests new ones.
+How ketchup started as a fish sauce
+Why pencils are yellow
+The surprising history of the fork
+Why the barcode was invented
+The strange origin of the shopping cart
+Who really invented the sandwich
+Why we eat popcorn at the movies
+How the humble paper clip got its shape

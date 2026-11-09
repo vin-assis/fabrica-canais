@@ -1,0 +1,36 @@
+# Cada canal é um bloco. O motor roda um canal por vez (o GitHub Actions chama um de cada vez).
+# Campos que você pode mexer sem saber programar: nicho, publico, tom, voz, duracao, horarios.
+
+canais:
+  pt:
+    nome: "Mundo Curioso"
+    idioma: "pt-BR"
+    nicho: >
+      Histórias curiosas de empresas, marcas e dinheiro: como surgiram produtos que todo mundo usa,
+      por que empresas gigantes quebraram, decisões que mudaram mercados, golpes famosos e armadilhas
+      financeiras que atingem brasileiros comuns. Sempre com uma lição prática no final.
+    publico: "Brasileiros de 25 a 55 anos, donos de pequenos negócios, autônomos e curiosos por dinheiro e empresas."
+    tom: "Narrador de documentário: direto, curioso, sem sensacionalismo, com números concretos e fontes."
+    voz: "pt-BR-AntonioNeural"           # alternativas: pt-BR-FranciscaNeural, pt-BR-ThalitaMultilingualNeural
+    velocidade_voz: "+6%"
+    duracao_min: 8                       # minutos do vídeo longo (8+ libera anúncios no meio)
+    duracao_max: 11
+    shorts_por_video: 3                  # cortes verticais de 61 a 80 s (contam para o TikTok Creator Rewards)
+    categoria_youtube: "EDUCATION"
+    hashtags: ["#negocios", "#empreendedorismo", "#historia"]
+
+  en:
+    nome: "Strange Old World"
+    idioma: "en-US"
+    nicho: >
+      The surprising origin stories of everyday things (foods, objects, habits, brands, inventions),
+      told as short science-and-history documentaries with real sources.
+    publico: "English-speaking adults in the US, UK, Canada and Australia who like history, science and trivia."
+    tom: "Warm documentary narrator: curious, precise, light humor, no clickbait lies."
+    voz: "en-US-AndrewMultilingualNeural" # alternatives: en-US-GuyNeural, en-US-AvaMultilingualNeural, en-GB-RyanNeural
+    velocidade_voz: "+0%"
+    duracao_min: 8
+    duracao_max: 11
+    shorts_por_video: 3
+    categoria_youtube: "EDUCATION"
+    hashtags: ["#history", "#science", "#didyouknow"]

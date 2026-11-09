@@ -1,0 +1,10 @@
+# Fila de temas do canal PT. Um por linha. A fábrica usa de cima para baixo e pula os que já saíram.
+# Quando a fila acabar, a IA sugere temas novos sozinha. Linhas com # são ignoradas.
+Como a Havaianas deixou de ser chinelo barato e virou marca global
+Por que a Kodak quebrou mesmo tendo inventado a câmera digital
+A história da Varig: do auge à falência
+Mappin: como a loja mais famosa de São Paulo desapareceu
+Encol: a maior falência da construção civil brasileira
+Como funciona o golpe do falso parente no WhatsApp (e por que tanta gente cai)
+A história do Guaraná Antarctica
+Por que tantas empresas quebram crescendo: o problema do capital de giro
