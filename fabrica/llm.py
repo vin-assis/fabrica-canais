@@ -6,7 +6,8 @@ import time
 
 import requests
 
-GEMINI_MODELS = [m for m in [os.getenv("GEMINI_MODEL"), "gemini-flash-latest", "gemini-2.5-flash"] if m]
+GEMINI_MODELS = [m for m in [os.getenv("GEMINI_MODEL"), "gemini-3.6-flash", "gemini-flash-latest",
+                             "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"] if m]
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5-5")
 
 
@@ -34,20 +35,31 @@ def _gemini(prompt: str, search: bool, want_json: bool, temperature: float):
         body["tools"] = [{"google_search": {}}]
     elif want_json:
         body["generationConfig"]["responseMimeType"] = "application/json"
-    last = None
+    errors = []
     for model in GEMINI_MODELS:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-        for attempt in range(4):
-            r = requests.post(url, params={"key": key}, json=body, timeout=300)
-            if r.status_code == 429 or r.status_code >= 500:
-                last = f"{model}: HTTP {r.status_code} {r.text[:300]}"
-                time.sleep(20 * (attempt + 1))
+        for attempt in range(3):
+            try:
+                r = requests.post(url, params={"key": key}, json=body, timeout=(20, 420))
+            except requests.RequestException as e:
+                errors.append(f"{model}: {type(e).__name__}")
+                print(f"  gemini {model}: {type(e).__name__}, tentando de novo", flush=True)
                 continue
-            if r.status_code == 404:
-                last = f"{model}: modelo não encontrado"
+            if r.status_code == 200:
+                pass
+            elif r.status_code == 429 and "limit: 0" in r.text:
+                errors.append(f"{model}: sem cota no plano grátis")
+                print(f"  gemini {model}: sem cota no plano grátis, pulando", flush=True)
                 break
-            if r.status_code != 200:
-                raise LLMError(f"{model}: HTTP {r.status_code} {r.text[:500]}")
+            elif r.status_code == 429 or r.status_code >= 500:
+                errors.append(f"{model}: HTTP {r.status_code}")
+                print(f"  gemini {model}: HTTP {r.status_code} {r.text[:200]}", flush=True)
+                time.sleep(15 * (attempt + 1))
+                continue
+            else:
+                errors.append(f"{model}: HTTP {r.status_code} {r.text[:200]}")
+                print(f"  gemini {model}: HTTP {r.status_code} {r.text[:300]}", flush=True)
+                break
             data = r.json()
             cand = (data.get("candidates") or [{}])[0]
             text = "".join(p.get("text", "") for p in cand.get("content", {}).get("parts", []))
@@ -57,11 +69,12 @@ def _gemini(prompt: str, search: bool, want_json: bool, temperature: float):
                 if web.get("uri"):
                     sources.append({"name": web.get("title", ""), "url": web["uri"]})
             if not text.strip():
-                last = f"{model}: resposta vazia ({cand.get('finishReason')})"
+                errors.append(f"{model}: resposta vazia ({cand.get('finishReason')})")
                 time.sleep(5)
                 continue
+            print(f"  gemini {model}: ok ({len(text)} caracteres)", flush=True)
             return text, sources
-    raise LLMError(last or "falha no Gemini")
+    raise LLMError("; ".join(errors[-6:]) or "falha no Gemini")
 
 
 def _anthropic(prompt: str, search: bool, want_json: bool, temperature: float):
