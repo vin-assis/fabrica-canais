@@ -48,7 +48,7 @@ def chapters(blocks, starts):
     return "\n".join(f"{s // 60}:{s % 60:02d} {t}" for s, t in out) if len(out) >= 3 else ""
 
 
-def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None, seed=0):
+def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None, seed=0, main_query=None):
     """Narra blocos, busca cenas, monta. Retorna (caminho, duração, inícios dos blocos, créditos)."""
     work.mkdir(parents=True, exist_ok=True)
     st = stock.Stock(ROOT / ".cache" / "stock", "portrait" if vertical else "landscape", offline)
@@ -67,7 +67,10 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
     seg_clips = []
     for b in blocks:
         clips = []
-        for q in (b.get("buscas") or ["abstract background"])[:4]:
+        queries = list(b.get("buscas") or [])[:4]
+        if main_query and main_query not in queries:
+            queries.append(main_query)
+        for q in queries or ["abstract background"]:
             clips += st.clips(q, n=2)
         seg_clips.append(clips)
     track = render.build_track(seg_dur, seg_clips, size, work / f"{name}_trilha.mp4", seed=seed)
@@ -118,7 +121,8 @@ def main():
 
     # 2. vídeo longo
     log("montando vídeo longo...")
-    video, total, starts, credits = make_video(sc["blocos"], ch, work, LONG, "video", a.offline, seed=len(hist))
+    video, total, starts, credits = make_video(sc["blocos"], ch, work, LONG, "video", a.offline, seed=len(hist),
+                                               main_query=sc.get("busca_principal"))
     shutil.move(str(video), out_dir / "video.mp4")
     lufs, peak = render.loudness(out_dir / "video.mp4")
     log(f"vídeo longo: {total/60:.1f} min, {lufs} LUFS")
@@ -135,7 +139,7 @@ def main():
         for i, s in enumerate(sc.get("shorts", [])[: int(ch.get("shorts_por_video", 3))]):
             log(f"short {i+1}...")
             v, d, _, cr = make_video([s], ch, work, VERT, f"short_{i+1}", a.offline, vertical=True,
-                                     hook=s.get("titulo"), seed=i + 7)
+                                     hook=s.get("titulo"), seed=i + 7, main_query=sc.get("busca_principal"))
             shutil.move(str(v), out_dir / f"short_{i+1}.mp4")
             credits.update(cr)
             shorts_meta.append({"arquivo": f"short_{i+1}.mp4", "titulo": s["titulo"], "duracao_s": round(d, 1),

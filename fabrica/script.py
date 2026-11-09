@@ -113,16 +113,17 @@ Regras de roteiro:
 - Último bloco: conclusão + convite natural para comentar uma pergunta específica. Sem pedir like de forma genérica.
 - Nunca afirme algo que o dossiê marcou como incerto sem dizer que é incerto.
 
-Para cada bloco, dê de 2 a 4 buscas de imagens de banco de vídeo EM INGLÊS (2 a 4 palavras, coisas filmáveis: "coffee beans roasting", "busy street sao paulo", "old factory workers"). Nada de nomes de pessoas famosas ou logotipos.
+Para cada bloco, dê de 3 a 4 buscas de vídeo de banco de imagens EM INGLÊS (2 a 4 palavras) que mostrem LITERALMENTE o que a narração daquele bloco descreve: o objeto, o lugar ou a ação concreta ("rubber flip flops", "brazil beach crowd", "shoe factory machine", "fashion runway models"). A primeira busca de cada bloco deve conter o objeto principal do vídeo. Evite paisagens genéricas, cidades aleatórias e conceitos abstratos ("success", "business"). Nada de nomes de pessoas famosas ou logotipos.
 
-Escreva também {n_shorts} roteiros de Shorts independentes (cada um com 165 a 200 palavras, para dar entre 61 e 80 segundos): gancho forte na primeira frase, um único fato ou história, final que manda para o vídeo completo.
+Escreva também {n_shorts} roteiros de Shorts independentes (cada um com 200 a 230 palavras; menos que 190 palavras é proibido, porque o vídeo precisa passar de 61 segundos): gancho forte na primeira frase, um único fato ou história, final que manda para o vídeo completo.
 
 Responda só com JSON neste formato:
 {{
  "titulos": ["5 opções de título, até 65 caracteres, curiosidade sem mentira"],
  "titulo": "o melhor dos 5",
  "texto_thumbnail": "2 a 4 palavras em MAIÚSCULAS, diferente do título",
- "busca_thumbnail": "busca em inglês para a imagem de fundo da thumbnail",
+ "busca_thumbnail": "busca em inglês para a imagem de fundo da thumbnail, mostrando o objeto principal",
+ "busca_principal": "2 a 3 palavras em inglês com o objeto principal do vídeo (ex.: rubber flip flops)",
  "descricao": "2 parágrafos para a descrição do YouTube, com palavras-chave naturais",
  "tags": ["15 a 20 tags"],
  "blocos": [{{"titulo_capitulo": "curto", "narracao": "texto falado", "buscas": ["..."]}}],
@@ -159,8 +160,19 @@ Responda só com JSON: {{"problemas": [{{"trecho": "...", "problema": "...", "co
                 b["narracao"] = b["narracao"].replace(trecho, corr)
                 fixes += 1
                 break
+    for b in script["blocos"]:
+        b["narracao"] = dedupe(b["narracao"])
     data["correcoes_aplicadas"] = fixes
     return data
+
+
+def dedupe(text):
+    """Remove trechos repetidos colados ("em 1969, em 1969,") que às vezes surgem ao aplicar correções."""
+    import re
+    for n in range(8, 2, -1):
+        pat = re.compile(r"(\b(?:\S+\s+){%d}\S*?)[,\s]+\1" % (n - 1), re.I)
+        text = pat.sub(r"\1", text)
+    return text
 
 
 def _dedupe_sources(sources):
