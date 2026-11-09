@@ -6,8 +6,11 @@ import time
 
 import requests
 
-GEMINI_MODELS = [m for m in [os.getenv("GEMINI_MODEL"), "gemini-3.6-flash", "gemini-flash-latest",
-                             "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"] if m]
+# Plano grátis (nov/2026): 3.8/3.6/3 Flash = 5 por minuto e 20 por dia; 3.5/3.1 Flash Lite = 15 por minuto e 500 por dia.
+GEMINI_MODELS = [m for m in [os.getenv("GEMINI_MODEL"), "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3-flash",
+                             "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"] if m]
+# Pesquisa no Google pelo Gemini: no plano grátis só funciona nos modelos 2.5 (os 3.x têm cota zero).
+GEMINI_SEARCH_MODELS = [m for m in [os.getenv("GEMINI_SEARCH_MODEL"), "gemini-2.5-flash", "gemini-2.5-flash-lite"] if m]
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5-5")
 
 
@@ -36,9 +39,9 @@ def _gemini(prompt: str, search: bool, want_json: bool, temperature: float):
     elif want_json:
         body["generationConfig"]["responseMimeType"] = "application/json"
     errors = []
-    for model in GEMINI_MODELS:
+    for model in (GEMINI_SEARCH_MODELS if search else GEMINI_MODELS):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-        for attempt in range(3):
+        for attempt in range(1 if search else 3):
             try:
                 r = requests.post(url, params={"key": key}, json=body, timeout=(20, 420))
             except requests.RequestException as e:

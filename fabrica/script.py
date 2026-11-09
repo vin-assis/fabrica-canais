@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-from . import llm
+from . import llm, wiki
 
 ROOT = Path(__file__).resolve().parent.parent
 WPM = {"pt": 155, "en": 150}
@@ -51,17 +51,41 @@ Responda só com JSON: {{"temas": [{{"tema": "...", "por_que": "..."}}]}} com o 
 
 
 def research(topic, ch):
-    prompt = f"""Pesquise na web e escreva um dossiê factual sobre: "{topic}".
-Para cada fato, inclua número, data, lugar ou nome concreto quando existir, e diga de onde veio.
-Separe em: contexto, linha do tempo, números, viradas da história, curiosidades pouco conhecidas,
-mitos comuns (e o que é verdade), e o que ainda é incerto ou disputado.
-Não invente nada: se não achar, escreva "não encontrado". Escreva em {_lang_name(ch)}."""
+    """Junta material com fonte (Wikipédia + Google via Gemini 2.5, se houver cota) e monta o dossiê só com ele."""
+    lang = _lang(ch)
+    en_query = topic
+    if lang != "en":
+        try:
+            data, _ = llm.ask(f'Traduza para uma busca curta em inglês na Wikipédia (2 a 6 palavras), só o JSON '
+                              f'{{"q": "..."}}: "{topic}"', want_json=True, temperature=0)
+            en_query = data.get("q") or topic
+        except Exception as e:  # noqa: BLE001
+            print(f"  tradução da busca falhou: {e}", flush=True)
+    material, sources = wiki.gather(topic, langs=(lang, "en") if lang != "en" else ("en",), english_query=en_query)
+
+    google_notes = ""
     try:
-        notes, sources = llm.ask(prompt, search=True, temperature=0.2)
-        return notes, sources, True
+        google_notes, g_sources = llm.ask(
+            f'Pesquise na web fatos verificáveis sobre "{topic}": datas, números, nomes, viradas da história, '
+            f'curiosidades pouco conhecidas e mitos comuns. Cite a fonte de cada fato.', search=True, temperature=0.2)
+        sources += g_sources
     except llm.LLMError as e:
-        notes, sources = llm.ask(prompt.replace("Pesquise na web e escreva", "Escreva"), temperature=0.2)
-        return notes + f"\n\n[AVISO: pesquisa na web falhou: {e}]", sources, False
+        print(f"  pesquisa no Google indisponível no plano atual ({str(e)[:120]})", flush=True)
+
+    if not material and not google_notes:
+        raise RuntimeError(f"nenhuma fonte encontrada para '{topic}' — tema pulado para não inventar fatos")
+
+    prompt = f"""Monte um dossiê factual sobre "{topic}" usando SOMENTE o material abaixo. Não acrescente nada
+que não esteja nele. Para cada fato, inclua número, data, lugar ou nome concreto quando existir e diga de qual
+fonte veio. Separe em: contexto, linha do tempo, números, viradas da história, curiosidades pouco conhecidas,
+mitos comuns (e o que é verdade), e o que é incerto ou o material não cobre. Escreva em {_lang_name(ch)}.
+
+MATERIAL:
+{material[:40000]}
+
+{('PESQUISA NO GOOGLE:' + chr(10) + google_notes[:15000]) if google_notes else ''}"""
+    notes, _ = llm.ask(prompt, temperature=0.2)
+    return notes, sources, bool(sources)
 
 
 def write_script(topic, ch, notes, sources):
