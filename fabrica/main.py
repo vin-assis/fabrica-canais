@@ -78,6 +78,16 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
                 break
             clips += st.clips(q, n=2)
         seg_clips.append(clips)
+    # bloco com poucas cenas para muito tempo repete a mesma imagem: completa com cenas de outros blocos
+    pool = [c for cl in seg_clips for c in cl]
+    import random as _r
+    rnd = _r.Random(seed)
+    for i, (need, cl) in enumerate(zip(seg_dur, seg_clips)):
+        want = int(need // 5) + 1
+        extra = [c for c in pool if c not in cl]
+        rnd.shuffle(extra)
+        while len(cl) < min(want, 8) and extra:
+            cl.append(extra.pop())
     track = render.build_track(seg_dur, seg_clips, size, work / f"{name}_trilha.mp4", seed=seed)
     subs = render.write_ass(all_words, work / f"{name}.ass", size, vertical=vertical, hook=hook)
     out = work / f"{name}.mp4"

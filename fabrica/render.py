@@ -54,10 +54,14 @@ def build_track(seg_durations, seg_clips, size, out, seed=0):
           f"eq=saturation=1.05:contrast=1.03,format=yuv420p")
     pieces, k = [], 0
     for si, (need, clips) in enumerate(zip(seg_durations, seg_clips)):
-        filled, ci = 0.0, 0
+        filled, ci, last = 0.0, 0, None
         while need - filled > 0.05:
             clip = clips[ci % len(clips)]
             ci += 1
+            if clip == last and len(clips) > 1:  # nunca a mesma cena duas vezes seguidas
+                clip = clips[ci % len(clips)]
+                ci += 1
+            last = clip
             cd = duration(clip)
             piece = min(rnd.uniform(3.2, 5.5), need - filled, cd)
             if need - filled - piece < 1.0:  # evita sobrar pedacinho

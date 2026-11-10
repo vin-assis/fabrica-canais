@@ -41,6 +41,24 @@ class Stock:
         """Fotos reais do Commons viradas em clipes de 5 s com zoom lento. Pode voltar vazio."""
         if not self.net:
             return []
+        out = self._photos(query, n)
+        words = query.split()
+        if not out and len(words) > 2:  # busca longa demais: tenta só as 2 primeiras palavras
+            out = self._photos(" ".join(words[:2]), n, strict_words=query)
+        return out
+
+    @staticmethod
+    def _relevant(title, query):
+        """A busca do Commons é solta ('Opening Ceremony' traz Olimpíada). Exige metade das palavras no título."""
+        import math
+        import re
+        words = [w for w in re.findall(r"[a-z0-9]+", query.lower()) if len(w) > 3]
+        if not words:
+            return True
+        t = title.lower()
+        return sum(w in t for w in words) >= max(1, math.ceil(len(words) / 2))
+
+    def _photos(self, query, n, strict_words=None):
         try:
             r = requests.get("https://commons.wikimedia.org/w/api.php", timeout=30,
                              headers={"User-Agent": "fabrica-canais/1.0 (https://github.com/vin-assis/fabrica-canais)"},
@@ -52,7 +70,7 @@ class Stock:
         except Exception as e:  # noqa: BLE001
             print(f"  commons falhou para '{query}': {e}", flush=True)
             return []
-        out, motivos = [], {"licença": 0, "pequena": 0, "download": 0}
+        out, motivos = [], {"licença": 0, "pequena": 0, "download": 0, "fora do tema": 0}
         for pg in pages:
             info = (pg.get("imageinfo") or [{}])[0]
             meta = info.get("extmetadata") or {}
@@ -60,6 +78,9 @@ class Stock:
             if not lic or any(b in lic for b in ("nc", "nd", "fair use", "non-free")) or \
                     not any(lic.startswith(g) or g in lic for g in self.OK_LICENSES):
                 motivos["licença"] += 1
+                continue
+            if not self._relevant(pg["title"], strict_words or query):
+                motivos["fora do tema"] += 1
                 continue
             if info.get("width", 0) < 900 or pg["title"] in self.used_ids:
                 motivos["pequena"] += 1
