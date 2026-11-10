@@ -52,15 +52,17 @@ class Stock:
         except Exception as e:  # noqa: BLE001
             print(f"  commons falhou para '{query}': {e}", flush=True)
             return []
-        out = []
+        out, motivos = [], {"licença": 0, "pequena": 0, "download": 0}
         for pg in pages:
             info = (pg.get("imageinfo") or [{}])[0]
             meta = info.get("extmetadata") or {}
             lic = (meta.get("LicenseShortName", {}).get("value") or "").lower()
             if not lic or any(b in lic for b in ("nc", "nd", "fair use", "non-free")) or \
                     not any(lic.startswith(g) or g in lic for g in self.OK_LICENSES):
+                motivos["licença"] += 1
                 continue
             if info.get("width", 0) < 900 or pg["title"] in self.used_ids:
+                motivos["pequena"] += 1
                 continue
             import html
             import re
@@ -68,6 +70,7 @@ class Stock:
             src = info.get("thumburl") or info.get("url")
             img = self.dir / f"cm_{pg['pageid']}.jpg"
             if not self._download(src, img):
+                motivos["download"] += 1
                 continue
             clip = self._photo_clip(img)
             if not clip:
@@ -79,6 +82,7 @@ class Stock:
             out.append(clip)
             if len(out) >= n:
                 break
+        print(f"  commons '{query}': {len(pages)} achadas, {len(out)} usadas, descartes {motivos}", flush=True)
         return out
 
     def _photo_clip(self, img, dur=5.0):

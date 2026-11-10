@@ -82,6 +82,7 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
     subs = render.write_ass(all_words, work / f"{name}.ass", size, vertical=vertical, hook=hook)
     out = work / f"{name}.mp4"
     render.final_mix(track, narration, subs, out, music_dir=ROOT / "assets" / "music", total=total)
+    log(f"{name}: {len(st.photo_files)} fotos do Commons, {len(st.credits)} autores de vídeo")
     st.credits["__fotos__"] = st.photo_credits
     st.credits["__arquivos__"] = st.photo_files
     return out, total, starts, st.credits
@@ -147,8 +148,12 @@ def main():
     if not a.sem_shorts:
         for i, s in enumerate(sc.get("shorts", [])[: int(ch.get("shorts_por_video", 3))]):
             log(f"short {i+1}...")
-            v, d, _, cr = make_video([s], ch, work, VERT, f"short_{i+1}", a.offline, vertical=True,
-                                     hook=s.get("titulo"), seed=i + 7, main_query=sc.get("busca_principal"))
+            try:
+                v, d, _, cr = make_video([s], ch, work, VERT, f"short_{i+1}", a.offline, vertical=True,
+                                         hook=s.get("titulo"), seed=i + 7, main_query=sc.get("busca_principal"))
+            except Exception as e:  # noqa: BLE001
+                log(f"short {i+1} falhou e foi pulado: {str(e)[-300:]}")
+                continue
             shutil.move(str(v), out_dir / f"short_{i+1}.mp4")
             cr.pop("__arquivos__", None)
             credits.setdefault("__fotos__", [])

@@ -127,17 +127,25 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 
 def final_mix(video, narration, subs, out, music_dir=None, total=None):
-    """Junta vídeo + narração + legenda + música de fundo (se houver mp3 em assets/music) e normaliza o volume."""
+    """Junta vídeo + narração + legenda + música de fundo e normaliza o volume. Se o loudnorm falhar, usa ganho simples."""
+    try:
+        return _final_mix(video, narration, subs, out, music_dir, total, norm="loudnorm=I=-14:TP=-1.5:LRA=11")
+    except RuntimeError as e:
+        print(f"  loudnorm falhou, usando ganho simples ({str(e)[-120:]})", flush=True)
+        return _final_mix(video, narration, subs, out, music_dir, total, norm="volume=2.0,alimiter=limit=0.89")
+
+
+def _final_mix(video, narration, subs, out, music_dir, total, norm):
     music = sorted(Path(music_dir).glob("*.mp3")) if music_dir and Path(music_dir).exists() else []
     cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(video), "-i", str(narration)]
     subs_f = str(subs).replace(":", "\\:")
     vf = f"[0:v]ass={subs_f}:fontsdir={FONTS}[v]"
     if music:
         cmd += ["-stream_loop", "-1", "-i", str(random.choice(music))]
-        af = ("[2:a]volume=0.10,afade=t=in:d=2[m];[1:a][m]amix=inputs=2:duration=first:dropout_transition=0,"
-              "loudnorm=I=-14:TP=-1.5:LRA=11[a]")
+        af = ("[2:a]aresample=48000,volume=0.10,afade=t=in:d=2[m];[1:a]aresample=48000[n];"
+              f"[n][m]amix=inputs=2:duration=first:dropout_transition=0,{norm}[a]")
     else:
-        af = "[1:a]loudnorm=I=-14:TP=-1.5:LRA=11[a]"
+        af = f"[1:a]aresample=48000,aformat=sample_fmts=fltp,{norm}[a]"
     cmd += ["-filter_complex", f"{vf};{af}", "-map", "[v]", "-map", "[a]",
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
             "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart"]
