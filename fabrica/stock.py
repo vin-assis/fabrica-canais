@@ -46,7 +46,7 @@ class Stock:
                              headers={"User-Agent": "fabrica-canais/1.0 (https://github.com/vin-assis/fabrica-canais)"},
                              params={"action": "query", "format": "json", "generator": "search",
                                      "gsrsearch": f"{query} filetype:bitmap", "gsrnamespace": 6, "gsrlimit": 20,
-                                     "prop": "imageinfo", "iiprop": "url|extmetadata|size", "iiurlwidth": 1920})
+                                     "prop": "imageinfo", "iiprop": "url|extmetadata|size", "iiurlwidth": 1280})
             r.raise_for_status()
             pages = sorted(r.json().get("query", {}).get("pages", {}).values(), key=lambda p: p.get("index", 99))
         except Exception as e:  # noqa: BLE001
@@ -137,7 +137,8 @@ class Stock:
         if path.exists():
             return True
         try:
-            with requests.get(url, stream=True, timeout=120) as d:
+            headers = {"User-Agent": "fabrica-canais/1.0 (https://github.com/vin-assis/fabrica-canais; bot de video)"}
+            with requests.get(url, stream=True, timeout=120, headers=headers) as d:
                 d.raise_for_status()
                 with open(path, "wb") as fh:
                     for chunk in d.iter_content(1 << 20):

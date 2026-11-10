@@ -10,7 +10,8 @@ import requests
 GEMINI_MODELS = [m for m in [os.getenv("GEMINI_MODEL"), "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3-flash",
                              "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"] if m]
 # Pesquisa no Google pelo Gemini: no plano grátis só funciona nos modelos 2.5 (os 3.x têm cota zero).
-GEMINI_SEARCH_MODELS = [m for m in [os.getenv("GEMINI_SEARCH_MODEL"), "gemini-2.5-flash", "gemini-2.5-flash-lite"] if m]
+# (os 2.5 não aceitam contas novas; só tenta se você definir GEMINI_SEARCH_MODEL, por exemplo com faturamento ativo)
+GEMINI_SEARCH_MODELS = [m for m in [os.getenv("GEMINI_SEARCH_MODEL")] if m]
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5-5")
 
 
@@ -39,6 +40,8 @@ def _gemini(prompt: str, search: bool, want_json: bool, temperature: float):
     elif want_json:
         body["generationConfig"]["responseMimeType"] = "application/json"
     errors = []
+    if search and not GEMINI_SEARCH_MODELS:
+        raise LLMError("pesquisa no Google desligada (defina GEMINI_SEARCH_MODEL para ativar)")
     for model in (GEMINI_SEARCH_MODELS if search else GEMINI_MODELS):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
         for attempt in range(1 if search else 3):
