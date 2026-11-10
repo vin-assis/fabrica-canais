@@ -17,7 +17,10 @@ class Stock:
         self.offline = offline or not (os.getenv("PEXELS_API_KEY") or os.getenv("PIXABAY_API_KEY"))
         self.used_ids = set()
         self.credits = {}
+        self.photo_files = []
+        self.photo_credits = []  # (arquivo, autor, licença, url) das fotos do Wikimedia Commons
         self._n = 0
+        self.net = not offline
 
     def clips(self, query, n=2):
         """Baixa até n clipes para a busca. Sempre devolve pelo menos 1 arquivo (cartão colorido se não achar)."""
@@ -30,6 +33,72 @@ class Stock:
         if not found:
             found = [self._placeholder(query)]
         return found
+
+    # ---------- fotos reais do Wikimedia Commons (licença livre, com crédito) ----------
+    OK_LICENSES = ("cc0", "public domain", "pd", "cc by", "cc-by")
+
+    def photos(self, query, n=2):
+        """Fotos reais do Commons viradas em clipes de 5 s com zoom lento. Pode voltar vazio."""
+        if not self.net:
+            return []
+        try:
+            r = requests.get("https://commons.wikimedia.org/w/api.php", timeout=30,
+                             headers={"User-Agent": "fabrica-canais/1.0 (https://github.com/vin-assis/fabrica-canais)"},
+                             params={"action": "query", "format": "json", "generator": "search",
+                                     "gsrsearch": f"{query} filetype:bitmap", "gsrnamespace": 6, "gsrlimit": 20,
+                                     "prop": "imageinfo", "iiprop": "url|extmetadata|size", "iiurlwidth": 1920})
+            r.raise_for_status()
+            pages = sorted(r.json().get("query", {}).get("pages", {}).values(), key=lambda p: p.get("index", 99))
+        except Exception as e:  # noqa: BLE001
+            print(f"  commons falhou para '{query}': {e}", flush=True)
+            return []
+        out = []
+        for pg in pages:
+            info = (pg.get("imageinfo") or [{}])[0]
+            meta = info.get("extmetadata") or {}
+            lic = (meta.get("LicenseShortName", {}).get("value") or "").lower()
+            if not lic or any(b in lic for b in ("nc", "nd", "fair use", "non-free")) or \
+                    not any(lic.startswith(g) or g in lic for g in self.OK_LICENSES):
+                continue
+            if info.get("width", 0) < 900 or pg["title"] in self.used_ids:
+                continue
+            import html
+            import re
+            artist = re.sub("<[^>]+>", "", html.unescape(meta.get("Artist", {}).get("value", "") or "")).strip()[:60]
+            src = info.get("thumburl") or info.get("url")
+            img = self.dir / f"cm_{pg['pageid']}.jpg"
+            if not self._download(src, img):
+                continue
+            clip = self._photo_clip(img)
+            if not clip:
+                continue
+            self.used_ids.add(pg["title"])
+            self.photo_files.append(img)
+            self.photo_credits.append((pg["title"].replace("File:", ""), artist or "autor desconhecido",
+                                       meta.get("LicenseShortName", {}).get("value", ""), info.get("descriptionurl", "")))
+            out.append(clip)
+            if len(out) >= n:
+                break
+        return out
+
+    def _photo_clip(self, img, dur=5.0):
+        w, h = (1920, 1080) if self.orientation == "landscape" else (1080, 1920)
+        out = img.with_suffix(f".{self.orientation}.mp4")
+        if out.exists():
+            return out
+        frames = int(dur * 30)
+        fc = (f"[0]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},boxblur=30:3,eq=brightness=-0.12[bg];"
+              f"[0]scale={int(w*0.94)}:{int(h*0.94)}:force_original_aspect_ratio=decrease[fg];"
+              f"[bg][fg]overlay=(W-w)/2:(H-h)/2,scale={w*2}:{h*2},"
+              f"zoompan=z='min(zoom+0.0006,1.10)':d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={w}x{h}:fps=30,"
+              f"format=yuv420p")
+        p = subprocess.run(["ffmpeg", "-v", "error", "-y", "-loop", "1", "-i", str(img), "-filter_complex", fc,
+                            "-t", f"{dur}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", str(out)],
+                           capture_output=True, text=True)
+        if p.returncode != 0:
+            print(f"  foto {img.name} não converteu: {p.stderr[-200:]}", flush=True)
+            return None
+        return out
 
     def _pexels(self, query, n):
         try:

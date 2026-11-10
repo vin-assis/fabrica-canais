@@ -115,6 +115,10 @@ Regras de roteiro:
 
 Para cada bloco, dê de 3 a 4 buscas de vídeo de banco de imagens EM INGLÊS (2 a 4 palavras) que mostrem LITERALMENTE o que a narração daquele bloco descreve: o objeto, o lugar ou a ação concreta ("rubber flip flops", "brazil beach crowd", "shoe factory machine", "fashion runway models"). A primeira busca de cada bloco deve conter o objeto principal do vídeo. Evite paisagens genéricas, cidades aleatórias e conceitos abstratos ("success", "business"). Nada de nomes de pessoas famosas ou logotipos.
 
+Para cada bloco, dê também de 1 a 3 "fotos": buscas curtas EM INGLÊS para fotos reais na Wikimedia Commons do que o bloco cita
+pelo nome (marca, produto, empresa, fábrica, loja, cidade, objeto histórico), por exemplo "Havaianas flip flops",
+"Havaianas store", "Sao Paulo 1960s". Nunca nomes de pessoas.
+
 Escreva também {n_shorts} roteiros de Shorts independentes (cada um com 200 a 230 palavras; menos que 190 palavras é proibido, porque o vídeo precisa passar de 61 segundos): gancho forte na primeira frase, um único fato ou história, final que manda para o vídeo completo.
 
 Responda só com JSON neste formato:
@@ -126,8 +130,8 @@ Responda só com JSON neste formato:
  "busca_principal": "2 a 3 palavras em inglês com o objeto principal do vídeo (ex.: rubber flip flops)",
  "descricao": "2 parágrafos para a descrição do YouTube, com palavras-chave naturais",
  "tags": ["15 a 20 tags"],
- "blocos": [{{"titulo_capitulo": "curto", "narracao": "texto falado", "buscas": ["..."]}}],
- "shorts": [{{"titulo": "até 60 caracteres", "narracao": "texto falado", "buscas": ["..."], "legenda": "texto para Instagram/TikTok com 3 a 5 hashtags"}}],
+ "blocos": [{{"titulo_capitulo": "curto", "narracao": "texto falado", "fotos": ["..."], "buscas": ["..."]}}],
+ "shorts": [{{"titulo": "até 60 caracteres", "narracao": "texto falado", "fotos": ["..."], "buscas": ["..."], "legenda": "texto para Instagram/TikTok com 3 a 5 hashtags"}}],
  "afirmacoes_para_checar": ["as 5 afirmações mais arriscadas do roteiro, para o revisor humano conferir"]
 }}"""
     data, _ = llm.ask(prompt, want_json=True, temperature=0.75)

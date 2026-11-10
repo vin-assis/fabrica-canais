@@ -67,16 +67,23 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
     seg_clips = []
     for b in blocks:
         clips = []
+        # 1º fotos reais (Commons) do que a narração cita; 2º vídeos de banco para completar
+        for q in (b.get("fotos") or [])[:3]:
+            clips += st.photos(q, n=2)
         queries = list(b.get("buscas") or [])[:4]
         if main_query and main_query not in queries:
             queries.append(main_query)
         for q in queries or ["abstract background"]:
+            if len(clips) >= 6:
+                break
             clips += st.clips(q, n=2)
         seg_clips.append(clips)
     track = render.build_track(seg_dur, seg_clips, size, work / f"{name}_trilha.mp4", seed=seed)
     subs = render.write_ass(all_words, work / f"{name}.ass", size, vertical=vertical, hook=hook)
     out = work / f"{name}.mp4"
     render.final_mix(track, narration, subs, out, music_dir=ROOT / "assets" / "music", total=total)
+    st.credits["__fotos__"] = st.photo_credits
+    st.credits["__arquivos__"] = st.photo_files
     return out, total, starts, st.credits
 
 
@@ -127,10 +134,12 @@ def main():
     lufs, peak = render.loudness(out_dir / "video.mp4")
     log(f"vídeo longo: {total/60:.1f} min, {lufs} LUFS")
 
-    # 3. thumbnails
+    # 3. thumbnails: de preferência fotos reais do assunto; senão, quadros do vídeo
     thumbs = []
+    reais = [p for p in credits.pop("__arquivos__", []) if p.exists()]
     for i, t in enumerate([0.18, 0.42, 0.66]):
-        frame = render.grab_frame(work / "video_trilha.mp4", total * t, work / f"frame_{i}.jpg")
+        frame = reais[i] if i < len(reais) else \
+            render.grab_frame(work / "video_trilha.mp4", total * t, work / f"frame_{i}.jpg")
         thumbs.append(thumb.make(frame, sc.get("texto_thumbnail") or sc["titulo"], out_dir / f"thumb_{i+1}.jpg", i))
 
     # 4. shorts
@@ -141,6 +150,9 @@ def main():
             v, d, _, cr = make_video([s], ch, work, VERT, f"short_{i+1}", a.offline, vertical=True,
                                      hook=s.get("titulo"), seed=i + 7, main_query=sc.get("busca_principal"))
             shutil.move(str(v), out_dir / f"short_{i+1}.mp4")
+            cr.pop("__arquivos__", None)
+            credits.setdefault("__fotos__", [])
+            credits["__fotos__"] += cr.pop("__fotos__", [])
             credits.update(cr)
             shorts_meta.append({"arquivo": f"short_{i+1}.mp4", "titulo": s["titulo"], "duracao_s": round(d, 1),
                                 "legenda": s.get("legenda", "")})
@@ -149,14 +161,22 @@ def main():
     pt = ch["idioma"].startswith("pt")
     cap = chapters(sc["blocos"], starts)
     fontes = "\n".join(f"- {f.get('name') or f['url']}: {f['url']}" for f in sc.get("fontes", []))
+    fotos = credits.pop("__fotos__", [])
     cred = ", ".join(sorted(credits)) if credits else ""
     desc = sc.get("descricao", "").strip()
     if cap:
         desc += ("\n\nCapítulos:\n" if pt else "\n\nChapters:\n") + cap
     if fontes:
         desc += ("\n\nFontes:\n" if pt else "\n\nSources:\n") + fontes
+    if fotos:
+        seen, linhas = set(), []
+        for nome, autor, lic, url in fotos:
+            if url not in seen:
+                seen.add(url)
+                linhas.append(f"- {autor} ({lic}): {url}")
+        desc += ("\n\nFotos (Wikimedia Commons):\n" if pt else "\n\nPhotos (Wikimedia Commons):\n") + "\n".join(linhas[:25])
     if cred:
-        desc += ("\n\nImagens: Pixabay e Pexels (" if pt else "\n\nFootage: Pixabay and Pexels (") + cred + ")"
+        desc += ("\n\nVídeos: Pixabay e Pexels (" if pt else "\n\nFootage: Pixabay and Pexels (") + cred + ")"
     desc += ("\n\nNarração com voz sintética. Roteiro pesquisado e revisado pela equipe do canal."
              if pt else "\n\nNarrated with a synthetic voice. Script researched and reviewed by the channel team.")
     desc += "\n\n" + " ".join(ch.get("hashtags", []))
