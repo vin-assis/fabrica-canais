@@ -8,13 +8,14 @@ Uso:
 import argparse
 import datetime as dt
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
 
 import yaml
 
-from . import render, script, stock, thumb, tts
+from . import render, script, stock, thumb, tts, visual
 
 ROOT = Path(__file__).resolve().parent.parent
 LONG = (1920, 1080)
@@ -64,20 +65,55 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
     for s, words in zip(starts, seg_words):
         all_words += [[w0 + s, w1 + s, t] for w0, w1, t in words]
     seg_dur = [(starts[i + 1] if i + 1 < len(starts) else total) - starts[i] for i in range(len(starts))]
-    seg_clips = []
-    for b in blocks:
-        clips = []
-        # 1º fotos reais (Commons) do que a narração cita; 2º vídeos de banco para completar
+    seg_clips, ia_files, notas = [], [], {}
+    assunto = main_query or ""
+    ia_max = int(os.getenv("IA_MAX_IMAGENS", "8" if vertical else "30"))
+    for bi, (b, need) in enumerate(zip(blocks, seg_dur)):
+        cand = []
+        # 1º fotos reais (Commons) do que a narração cita; 2º vídeos de banco
         for q in (b.get("fotos") or [])[:3]:
-            clips += st.photos(q, n=2)
+            cand += st.photos(q, n=2)
         queries = list(b.get("buscas") or [])[:4]
         if main_query and main_query not in queries:
             queries.append(main_query)
         for q in queries or ["abstract background"]:
-            if len(clips) >= 6:
+            if len(cand) >= 8:
                 break
-            clips += st.clips(q, n=2)
-        seg_clips.append(clips)
+            cand += st.clips(q, n=2)
+        # o Gemini olha cada cena e descarta o que não tem a ver com a frase
+        kept, rejected = [], []
+        for c in cand:
+            if c.name.startswith("ph_"):
+                rejected.append((0, c))
+                continue
+            src = c
+            if c.name.startswith("cm_"):
+                src = c.with_name(c.name.split(".")[0] + ".jpg")
+            if c not in notas:
+                notas[c] = visual.conferir(src, b["narracao"], assunto) if not offline else None
+            n = notas[c]
+            (kept if n is None or n >= 6 else rejected).append(c if n is None or n >= 6 else (n, c))
+        want = min(7, max(2, int(need // 6) + 1))
+        # onde faltar cena boa, a IA gera a imagem do que está sendo narrado
+        prompts = list(b.get("cenas_ia") or [])
+        if not prompts:
+            prompts = [f"{assunto}: {b.get('titulo_capitulo', '')}"]
+        k = 0
+        while len(kept) < want and len(ia_files) < ia_max and not offline and k < want:
+            pr = prompts[k % len(prompts)]
+            img = visual.gerar(pr, work / f"{name}_ia_{bi:02d}_{k}.png", vertical=vertical)
+            k += 1
+            if not img:
+                break
+            clip = st._photo_clip(img)
+            if clip:
+                ia_files.append(img)
+                kept.append(clip)
+        if not kept:  # sem nada aprovado: usa o melhor que sobrou para não ficar tela vazia
+            kept = [c for _, c in sorted(rejected, key=lambda x: -x[0])][:3] or cand[:1] or st.clips("abstract", 1)
+        log(f"  bloco {bi+1}: {len(cand)} cenas achadas, {len(kept)} usadas "
+            f"({sum(1 for c in kept if '_ia_' in c.name)} geradas por IA)")
+        seg_clips.append(kept)
     # bloco com poucas cenas para muito tempo repete a mesma imagem: completa com cenas de outros blocos
     pool = [c for cl in seg_clips for c in cl]
     import random as _r
@@ -93,6 +129,7 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
     out = work / f"{name}.mp4"
     render.final_mix(track, narration, subs, out, music_dir=ROOT / "assets" / "music", total=total)
     log(f"{name}: {len(st.photo_files)} fotos do Commons, {len(st.credits)} autores de vídeo")
+    st.credits["__ia__"] = ia_files
     st.credits["__fotos__"] = st.photo_credits
     st.credits["__arquivos__"] = st.photo_files
     return out, total, starts, st.credits
@@ -148,6 +185,7 @@ def main():
     # 3. thumbnails: de preferência fotos reais do assunto; senão, quadros do vídeo
     thumbs = []
     reais = [p for p in credits.pop("__arquivos__", []) if p.exists()]
+    reais += [p for p in credits.get("__ia__", []) if p.exists()]
     for i, t in enumerate([0.18, 0.42, 0.66]):
         frame = reais[i] if i < len(reais) else \
             render.grab_frame(work / "video_trilha.mp4", total * t, work / f"frame_{i}.jpg")
@@ -155,6 +193,7 @@ def main():
 
     # 4. shorts
     shorts_meta = []
+    ia_total = len(credits.get("__ia__", []))
     if not a.sem_shorts:
         for i, s in enumerate(sc.get("shorts", [])[: int(ch.get("shorts_por_video", 3))]):
             log(f"short {i+1}...")
@@ -166,6 +205,7 @@ def main():
                 continue
             shutil.move(str(v), out_dir / f"short_{i+1}.mp4")
             cr.pop("__arquivos__", None)
+            ia_total += len(cr.pop("__ia__", []))
             credits.setdefault("__fotos__", [])
             credits["__fotos__"] += cr.pop("__fotos__", [])
             credits.update(cr)
@@ -177,6 +217,7 @@ def main():
     cap = chapters(sc["blocos"], starts)
     fontes = "\n".join(f"- {f.get('name') or f['url']}: {f['url']}" for f in sc.get("fontes", []))
     fotos = credits.pop("__fotos__", [])
+    credits.pop("__ia__", None)
     cred = ", ".join(sorted(credits)) if credits else ""
     desc = sc.get("descricao", "").strip()
     if cap:
@@ -194,6 +235,8 @@ def main():
         desc += ("\n\nVídeos: Pixabay e Pexels (" if pt else "\n\nFootage: Pixabay and Pexels (") + cred + ")"
     desc += ("\n\nNarração com voz sintética. Roteiro pesquisado e revisado pela equipe do canal."
              if pt else "\n\nNarrated with a synthetic voice. Script researched and reviewed by the channel team.")
+    if ia_total:
+        desc += (" Algumas imagens são ilustrações geradas por IA." if pt else " Some images are AI-generated illustrations.")
     desc += "\n\n" + " ".join(ch.get("hashtags", []))
 
     # 6. checagem automática
@@ -222,7 +265,7 @@ def main():
         "descricao": desc, "tags": sc.get("tags", [])[:20], "categoria_youtube": ch.get("categoria_youtube", "EDUCATION"),
         "video": "video.mp4", "duracao_s": round(total, 1), "thumbnails": [p.name for p in thumbs],
         "shorts": shorts_meta, "afirmacoes_para_checar": sc.get("afirmacoes_para_checar", []),
-        "checagem_ok": all(c["ok"] for c in chk), "aprovado": False,
+        "checagem_ok": all(c["ok"] for c in chk), "aprovado": False, "imagens_ia": ia_total,
     }
     (out_dir / "metadata.json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
     write_report(out_dir / "relatorio.md", report, meta, sc)

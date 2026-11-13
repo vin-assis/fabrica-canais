@@ -119,6 +119,11 @@ Para cada bloco, dê também de 1 a 3 "fotos": buscas curtas EM INGLÊS para fot
 pelo nome (marca, produto, empresa, fábrica, loja, cidade, objeto histórico), por exemplo "Havaianas flip flops",
 "Havaianas store", "Sao Paulo 1960s". Nunca nomes de pessoas.
 
+Para cada bloco, dê também 2 a 3 "cenas_ia": descrições EM INGLÊS (1 frase cada) de uma foto que mostraria exatamente
+o que aquele trecho narra, com época, lugar e objeto concretos (ex.: "1960s Brazilian factory workers stacking blue
+and white rubber sandals", "a 1975 engineer holding a bulky prototype digital camera in a lab"). Sem logotipos,
+sem texto na imagem, sem pessoas famosas reais.
+
 Escreva também {n_shorts} roteiros de Shorts independentes (cada um com 200 a 230 palavras; menos que 190 palavras é proibido, porque o vídeo precisa passar de 61 segundos): gancho forte na primeira frase, um único fato ou história, final que manda para o vídeo completo.
 
 Responda só com JSON neste formato:
@@ -130,8 +135,8 @@ Responda só com JSON neste formato:
  "busca_principal": "2 a 3 palavras em inglês com o objeto principal do vídeo (ex.: rubber flip flops)",
  "descricao": "2 parágrafos para a descrição do YouTube, com palavras-chave naturais",
  "tags": ["15 a 20 tags"],
- "blocos": [{{"titulo_capitulo": "curto", "narracao": "texto falado", "fotos": ["..."], "buscas": ["..."]}}],
- "shorts": [{{"titulo": "até 60 caracteres", "narracao": "texto falado", "fotos": ["..."], "buscas": ["..."], "legenda": "texto para Instagram/TikTok com 3 a 5 hashtags"}}],
+ "blocos": [{{"titulo_capitulo": "curto", "narracao": "texto falado", "fotos": ["..."], "buscas": ["..."], "cenas_ia": ["..."]}}],
+ "shorts": [{{"titulo": "até 60 caracteres", "narracao": "texto falado", "fotos": ["..."], "buscas": ["..."], "cenas_ia": ["..."], "legenda": "texto para Instagram/TikTok com 3 a 5 hashtags"}}],
  "afirmacoes_para_checar": ["as 5 afirmações mais arriscadas do roteiro, para o revisor humano conferir"]
 }}"""
     data, _ = llm.ask(prompt, want_json=True, temperature=0.75)

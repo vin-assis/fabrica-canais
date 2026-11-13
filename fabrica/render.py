@@ -133,7 +133,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 def final_mix(video, narration, subs, out, music_dir=None, total=None):
     """Junta vídeo + narração + legenda + música de fundo e normaliza o volume. Se o loudnorm falhar, usa ganho simples."""
     try:
-        return _final_mix(video, narration, subs, out, music_dir, total, norm="loudnorm=I=-14:TP=-1.5:LRA=11")
+        # volume em duas passadas e linear: sem o "bombeamento" que o loudnorm de uma passada causa na voz
+        p = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(narration), "-af",
+                            "loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json", "-f", "null", "-"],
+                           capture_output=True, text=True)
+        m = json.loads(p.stderr[p.stderr.rindex("{"):p.stderr.rindex("}") + 1])
+        norm = (f"loudnorm=I=-14:TP=-1.5:LRA=11:measured_I={m['input_i']}:measured_TP={m['input_tp']}:"
+                f"measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:offset={m['target_offset']}:"
+                f"linear=true")
+        return _final_mix(video, narration, subs, out, music_dir, total, norm=norm)
     except RuntimeError as e:
         print(f"  loudnorm falhou, usando ganho simples ({str(e)[-120:]})", flush=True)
         return _final_mix(video, narration, subs, out, music_dir, total, norm="volume=2.0,alimiter=limit=0.89")
