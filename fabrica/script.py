@@ -115,9 +115,10 @@ Regras de roteiro:
 
 Para cada bloco, dê de 3 a 4 buscas de vídeo de banco de imagens EM INGLÊS (2 a 4 palavras) que mostrem LITERALMENTE o que a narração daquele bloco descreve: o objeto, o lugar ou a ação concreta ("rubber flip flops", "brazil beach crowd", "shoe factory machine", "fashion runway models"). A primeira busca de cada bloco deve conter o objeto principal do vídeo. Evite paisagens genéricas, cidades aleatórias e conceitos abstratos ("success", "business"). Nada de nomes de pessoas famosas ou logotipos.
 
-Para cada bloco, dê também de 1 a 3 "fotos": buscas curtas EM INGLÊS para fotos reais na Wikimedia Commons do que o bloco cita
-pelo nome (marca, produto, empresa, fábrica, loja, cidade, objeto histórico), por exemplo "Havaianas flip flops",
-"Havaianas store", "Sao Paulo 1960s". Nunca nomes de pessoas.
+Para cada bloco, dê também de 2 a 4 "fotos": buscas curtas EM INGLÊS (2 ou 3 palavras) para fotos REAIS em acervos livres
+(Wikimedia Commons, Flickr, museus) do que o bloco cita pelo nome: marca, produto, empresa, fábrica, loja, cidade,
+objeto ou anúncio da época. Ex.: "Havaianas flip flops", "Kodak Brownie camera", "Kodak advertisement 1900",
+"Rochester New York 1950s". Prefira termos que costumam ter foto de verdade. Nunca nomes de pessoas.
 
 Para cada bloco, dê também 2 a 3 "cenas_ia": descrições EM INGLÊS (1 frase cada) de uma foto que mostraria exatamente
 o que aquele trecho narra, com época, lugar e objeto concretos (ex.: "1960s Brazilian factory workers stacking blue

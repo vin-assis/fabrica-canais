@@ -67,12 +67,12 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
     seg_dur = [(starts[i + 1] if i + 1 < len(starts) else total) - starts[i] for i in range(len(starts))]
     seg_clips, ia_files, notas = [], [], {}
     assunto = main_query or ""
-    ia_max = int(os.getenv("IA_MAX_IMAGENS", "8" if vertical else "30"))
+    ia_max = int(os.getenv("IA_MAX_IMAGENS", "3" if vertical else "12"))
     for bi, (b, need) in enumerate(zip(blocks, seg_dur)):
         cand = []
         # 1º fotos reais (Commons) do que a narração cita; 2º vídeos de banco
-        for q in (b.get("fotos") or [])[:3]:
-            cand += st.photos(q, n=2)
+        for q in (b.get("fotos") or [])[:4]:
+            cand += st.photos(q, n=3)
         queries = list(b.get("buscas") or [])[:4]
         if main_query and main_query not in queries:
             queries.append(main_query)
@@ -94,6 +94,22 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
             n = notas[c]
             (kept if n is None or n >= 6 else rejected).append(c if n is None or n >= 6 else (n, c))
         want = min(7, max(2, int(need // 6) + 1))
+        # antes de gerar: reaproveita fotos reais aprovadas de outros blocos que também combinem com esta frase
+        if len(kept) < 2:
+            for c, n in list(notas.items()):
+                if len(kept) >= 2:
+                    break
+                if c in kept or c.name.startswith("ph_") or n is None or n < 6:
+                    continue
+                src = c.with_name(c.name.split(".")[0] + ".jpg") if c.name.startswith("cm_") else c
+                n2 = visual.conferir(src, b["narracao"], assunto)
+                if n2 is not None and n2 >= 6:
+                    kept.append(c)
+        # IA só quando não sobrou NENHUMA ou só UMA cena real boa no bloco (e no máximo 2 por bloco)
+        if len(kept) >= 2:
+            want = len(kept)
+        else:
+            want = min(want, len(kept) + 2)
         # onde faltar cena boa, a IA gera a imagem do que está sendo narrado
         prompts = list(b.get("cenas_ia") or [])
         if not prompts:

@@ -45,6 +45,43 @@ class Stock:
         words = query.split()
         if not out and len(words) > 2:  # busca longa demais: tenta só as 2 primeiras palavras
             out = self._photos(" ".join(words[:2]), n, strict_words=query)
+        if len(out) < n:  # Openverse: Flickr, museus e acervos com licença livre
+            out += self._openverse(query, n - len(out))
+        return out
+
+    def _openverse(self, query, n):
+        try:
+            r = requests.get("https://api.openverse.org/v1/images/", timeout=30,
+                             headers={"User-Agent": "fabrica-canais/1.0 (https://github.com/vin-assis/fabrica-canais)"},
+                             params={"q": query, "license_type": "commercial,modification", "page_size": 20,
+                                     "mature": "false"})
+            r.raise_for_status()
+            results = r.json().get("results", [])
+        except Exception as e:  # noqa: BLE001
+            print(f"  openverse falhou para '{query}': {e}", flush=True)
+            return []
+        out, fora = [], 0
+        for it in results:
+            if it.get("id") in self.used_ids or (it.get("width") or 0) < 900:
+                continue
+            if not self._relevant(it.get("title") or "", query):
+                fora += 1
+                continue
+            img = self.dir / f"cm_ov{it['id'][:12]}.jpg"
+            if not self._download(it.get("url", ""), img):
+                continue
+            clip = self._photo_clip(img)
+            if not clip:
+                continue
+            self.used_ids.add(it["id"])
+            self.photo_files.append(img)
+            lic = f"{(it.get('license') or '').upper()} {it.get('license_version') or ''}".strip()
+            self.photo_credits.append((it.get("title") or "", it.get("creator") or "autor desconhecido", lic,
+                                       it.get("foreign_landing_url") or it.get("url")))
+            out.append(clip)
+            if len(out) >= n:
+                break
+        print(f"  openverse '{query}': {len(results)} achadas, {len(out)} usadas, {fora} fora do tema", flush=True)
         return out
 
     @staticmethod
