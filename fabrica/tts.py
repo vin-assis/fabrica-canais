@@ -36,11 +36,16 @@ def synth(text, voice, rate, out_path, offline=False):
         step = dur / len(toks)
         return dur, [[i * step, (i + 1) * step * 0.95, t] for i, t in enumerate(toks)]
     last_err = None
-    for _ in range(3):
-        try:
-            words = asyncio.run(_edge(text, voice, rate, out_path))
-            if out_path.stat().st_size > 1000:
-                return _probe_duration(out_path), words
-        except Exception as e:  # noqa: BLE001
-            last_err = e
+    fallback = {"en": ["en-US-GuyNeural", "en-US-ChristopherNeural", "en-US-AndrewNeural"],
+                "pt": ["pt-BR-AntonioNeural", "pt-BR-FranciscaNeural"]}[voice[:2]]
+    for v in [voice] + [f for f in fallback if f != voice]:
+        for _ in range(2):
+            try:
+                words = asyncio.run(_edge(text, v, rate, out_path))
+                if out_path.stat().st_size > 1000:
+                    if v != voice:
+                        print(f"  voz {voice} falhou, usando {v}", flush=True)
+                    return _probe_duration(out_path), words
+            except Exception as e:  # noqa: BLE001
+                last_err = e
     raise RuntimeError(f"narração falhou: {last_err}")
