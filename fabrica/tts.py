@@ -156,19 +156,32 @@ def _one(sentence, voice, rate, tmp):
         subprocess.run(["ffmpeg", "-v", "quiet", "-y", "-err_detect", "ignore_err", "-i", str(mp3), "-ar", "24000",
                         "-ac", "1", str(wav)], check=True)
     corte = quebrado or tem_corte(_read_wav(wav))  # testa antes de aparar, com o silêncio original em volta
-    # tira o silêncio das pontas (as pausas são colocadas por nós, iguais em todo o vídeo)
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(wav), "-af",
-                    "silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.04,areverse,"
-                    "silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.08,areverse,"
-                    "afade=t=in:d=0.008", str(cut)], check=True)
-    x = _read_wav(cut)
+    # tira só o excesso de silêncio das pontas, com folga para não comer o começo suave da palavra
+    x = _aparar(_read_wav(wav))
     if corte:
         _one.suspeito = x  # guarda: se nenhuma tentativa vier limpa, usa a última
         return None
     return x
 
 
-PAUSA = {".": 0.42, "!": 0.48, "?": 0.5, "…": 0.5, ":": 0.32, ";": 0.32}
+def _aparar(x, sr=24000, antes=0.07, depois=0.12):
+    """Corta o silêncio longo do começo e do fim, mas deixa 70 ms antes do primeiro som e 120 ms depois
+    do último (o ataque e a cauda da voz ficam inteiros). Rampa curta só nas pontas do silêncio."""
+    import numpy as np
+    a = np.abs(x)
+    som = np.where(a > 0.0015)[0]
+    if len(som) == 0:
+        return x
+    i0 = max(0, som[0] - int(antes * sr))
+    i1 = min(len(x), som[-1] + int(depois * sr))
+    y = x[i0:i1].copy()
+    n = min(len(y) // 4, int(0.03 * sr))
+    if n > 0:
+        y[-n:] *= np.linspace(1, 0, n)
+    return y
+
+
+PAUSA = {".": 0.26, "!": 0.3, "?": 0.32, "…": 0.32, ":": 0.16, ";": 0.16}  # somadas às folgas de 70+120 ms
 
 
 def synth(text, voice, rate, out_path, offline=False):
@@ -238,7 +251,7 @@ def synth(text, voice, rate, out_path, offline=False):
             audio.append(x)
             t += d
             if i < len(sents) - 1:
-                gap = PAUSA.get(s.rstrip()[-1:], 0.3)
+                gap = PAUSA.get(s.rstrip()[-1:], 0.14)
                 audio.append(np.zeros(int(gap * sr), dtype=np.float32))
                 t += gap
         wav = out_path.with_suffix(".wav")
