@@ -50,6 +50,36 @@ def chapters(blocks, starts):
     return "\n".join(f"{s // 60}:{s % 60:02d} {t}" for s, t in out) if len(out) >= 3 else ""
 
 
+_STOP = {"como", "para", "quem", "qual", "porque", "sobre", "mesmo", "tendo", "depois", "quanto", "ganha", "custa",
+         "comparado", "outros", "with", "from", "that", "what", "the", "and", "history", "historia", "história"}
+
+
+def _fontes_desc(fontes, assunto, oficiais):
+    """Fontes para a descrição: só as do assunto; links de redirecionamento do Google viram o nome do site;
+    em canal de dados, só sites oficiais."""
+    import re
+    import unicodedata
+
+    def norm(x):
+        return unicodedata.normalize("NFKD", (x or "").lower()).encode("ascii", "ignore").decode()
+    kws = [w for w in re.findall(r"\w+", norm(assunto)) if len(w) > 3 and w not in _STOP]
+    linhas, vistos = [], set()
+    for f in fontes:
+        nome, url = f.get("name") or "", f.get("url") or ""
+        redirect = "vertexaisearch" in url or "grounding-api-redirect" in url
+        if oficiais and not any(d in (nome + " " + url).lower() for d in oficiais) and "wikipedia" not in url:
+            continue
+        if "wikipedia.org/wiki" in url and not any(k in norm(nome + " " + url) for k in kws):
+            continue
+        linha = f"- {nome}" if redirect else f"- {nome or url}: {url}"
+        if oficiais and "wikipedia" in url:
+            continue  # canal de dados cita só a fonte oficial
+        if linha not in vistos:
+            vistos.add(linha)
+            linhas.append(linha)
+    return "\n".join(linhas[:15])
+
+
 def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None, seed=0, main_query=None):
     """Narra blocos, busca cenas, monta. Retorna (caminho, duração, inícios dos blocos, créditos)."""
     work.mkdir(parents=True, exist_ok=True)
@@ -285,26 +315,26 @@ def main():
     # 5. descrição final
     pt = ch["idioma"].startswith("pt")
     cap = chapters(sc["blocos"], starts)
-    fontes = "\n".join(f"- {f.get('name') or f['url']}: {f['url']}" for f in sc.get("fontes", []))
+    fontes = _fontes_desc(sc.get("fontes", []), topic + " " + sc.get("titulo", ""), ch.get("fontes_oficiais") or [])
     fotos = credits.pop("__fotos__", [])
     credits.pop("__ia__", None)
-    cred = ", ".join(sorted(credits)) if credits else ""
     desc = sc.get("descricao", "").strip()
     if cap:
         desc += ("\n\nCapítulos:\n" if pt else "\n\nChapters:\n") + cap
     if fontes:
         desc += ("\n\nFontes:\n" if pt else "\n\nSources:\n") + fontes
     if fotos:
-        seen, linhas = set(), []
+        autores = []
         for nome, autor, lic, url in fotos:
-            if url not in seen:
-                seen.add(url)
-                linhas.append(f"- {autor} ({lic}): {url}")
-        desc += ("\n\nFotos (Wikimedia Commons):\n" if pt else "\n\nPhotos (Wikimedia Commons):\n") + "\n".join(linhas[:25])
-    if cred:
-        desc += ("\n\nVídeos: Pixabay e Pexels (" if pt else "\n\nFootage: Pixabay and Pexels (") + cred + ")"
-    desc += ("\n\nNarração com voz sintética. Roteiro pesquisado e revisado pela equipe do canal."
-             if pt else "\n\nNarrated with a synthetic voice. Script researched and reviewed by the channel team.")
+            a = (autor or "").replace("Unknown authorUnknown author", "Unknown author").strip() or "?"
+            k = f"{a} ({lic})"
+            if k not in autores:
+                autores.append(k)
+        desc += ("\n\nFotos do Wikimedia Commons: " if pt else "\n\nPhotos from Wikimedia Commons: ") + "; ".join(autores[:40]) + "."
+    if credits:
+        desc += "\n\nVídeos: Pixabay e Pexels." if pt else "\n\nFootage: Pixabay and Pexels."
+    desc += ("\n\nNarração com voz sintética. Roteiro feito a partir das fontes listadas acima."
+             if pt else "\n\nNarrated with a synthetic voice. Script based on the sources listed above.")
     if ia_total:
         desc += (" Algumas imagens são ilustrações geradas por IA." if pt else " Some images are AI-generated illustrations.")
     desc += "\n\n" + " ".join(ch.get("hashtags", []))
