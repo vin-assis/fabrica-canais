@@ -88,6 +88,7 @@ jobs:
           PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
           LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          IMAGENS_IA: ${{ vars.IMAGENS_IA || '0' }}   # 0 = sem imagem gerada por IA (não exige o aviso de conteúdo sintético)
           GEMINI_SEARCH_MODEL: ${{ vars.GEMINI_SEARCH_MODEL || 'gemini-3.8-flash' }}
           CANAL: ${{ steps.canal.outputs.canal }}
           TEMA: ${{ matrix.tema }}
