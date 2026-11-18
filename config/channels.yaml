@@ -34,3 +34,43 @@ canais:
     shorts_por_video: 3
     categoria_youtube: "EDUCATION"
     hashtags: ["#history", "#science", "#didyouknow"]
+
+  poder:
+    nome: "Poder em Números"             # nome provisório: troque quando o canal for criado
+    idioma: "pt-BR"
+    nicho: >
+      Curiosidades do poder público explicadas com números oficiais: quanto ganham e quanto custam
+      ministros, deputados, senadores, juízes e presidentes, no Brasil e comparado com outros países;
+      como funcionam o Congresso, o STF, as eleições e o dinheiro público. Neutro, sem partido.
+    publico: "Brasileiros de 18 a 60 anos curiosos sobre política, impostos e para onde vai o dinheiro público."
+    tom: >
+      Jornalismo de dados: frases curtas, números com fonte oficial e data, comparação lado a lado,
+      sem adjetivo, sem opinião e sem atacar pessoa ou partido. O espectador tira a conclusão.
+    regras: >
+      Todo valor precisa de fonte oficial (lei, portal da transparência, site do órgão) e da data.
+      Separar salário-base de benefícios. Conversão de moeda com a cotação e a data citadas.
+      Se não houver fonte oficial no dossiê, não usar o número.
+    voz: "pt-BR-AntonioNeural"
+    velocidade_voz: "+6%"
+    duracao_min: 8
+    duracao_max: 11
+    shorts_por_video: 3
+    categoria_youtube: "NEWS_POLITICS"
+    hashtags: ["#politica", "#dinheiropublico", "#curiosidades"]
+
+  explica:
+    nome: "Como É Feito"                 # nome provisório: troque quando o canal for criado
+    idioma: "pt-BR"
+    nicho: >
+      Como as coisas do dia a dia são feitas e como funcionam: cerveja, gás de cozinha, amido de milho,
+      asfalto, papel, trevo de rodovia, elevador, avião, ar-condicionado. Processo passo a passo com a
+      física e a química explicadas de um jeito simples.
+    publico: "Brasileiros de 15 a 60 anos curiosos, que gostam de entender como o mundo funciona."
+    tom: "Professor animado e claro: uma etapa por vez, comparações do cotidiano, números concretos."
+    voz: "pt-BR-AntonioNeural"
+    velocidade_voz: "+6%"
+    duracao_min: 8
+    duracao_max: 11
+    shorts_por_video: 3
+    categoria_youtube: "EDUCATION"
+    hashtags: ["#comofunciona", "#comoefeito", "#ciencia"]

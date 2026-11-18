@@ -97,6 +97,7 @@ def write_script(topic, ch, notes, sources):
 Canal: {ch['nome']} | Nicho: {ch['nicho']}
 Público: {ch['publico']}
 Tom: {ch['tom']}
+{('Regras do canal: ' + ch['regras']) if ch.get('regras') else ''}
 Idioma de TODO o texto falado e dos títulos: {_lang_name(ch)}.
 
 Tema: {topic}
