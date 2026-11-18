@@ -33,7 +33,7 @@ def _gemini(prompt: str, search: bool, want_json: bool, temperature: float):
         raise LLMError("GEMINI_API_KEY não configurada")
     body = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": temperature, "maxOutputTokens": 16000},
+        "generationConfig": {"temperature": temperature, "maxOutputTokens": 32000},
     }
     if search:
         body["tools"] = [{"google_search": {}}]
@@ -122,10 +122,16 @@ def _anthropic(prompt: str, search: bool, want_json: bool, temperature: float):
 def ask(prompt: str, *, search: bool = False, want_json: bool = False, temperature: float = 0.7):
     """Retorna (texto, fontes). Com want_json=True, retorna (objeto, fontes)."""
     fn = _anthropic if provider() == "anthropic" else _gemini
-    text, sources = fn(prompt, search, want_json, temperature)
-    if want_json:
-        return parse_json(text), sources
-    return text, sources
+    for attempt in range(3):
+        text, sources = fn(prompt, search, want_json, temperature)
+        if not want_json:
+            return text, sources
+        try:
+            return parse_json(text), sources
+        except json.JSONDecodeError as e:  # resposta cortada ou malformada: pede de novo
+            print(f"  JSON inválido ({e}); pedindo de novo", flush=True)
+            if attempt == 2:
+                raise
 
 
 def parse_json(text: str):
