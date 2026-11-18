@@ -16,7 +16,7 @@ from pathlib import Path
 
 import yaml
 
-from . import cartela, render, script, stock, thumb, tts, visual
+from . import cartela, llm, render, script, stock, thumb, tts, visual
 
 ROOT = Path(__file__).resolve().parent.parent
 LONG = (1920, 1080)
@@ -140,12 +140,28 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
                 spans[-1][1] = s1  # frase curtinha fica na cena da anterior
             else:
                 spans.append([s0, s1, i])
+        # frases sem foto própria ganham um destaque curto (nome, ano, ideia central) para virar cartela
+        destaques = {}
+        sem_foto = [i for _, _, i in spans if not any(x[2] == i for x in kept)]
+        if sem_foto and not offline:
+            try:
+                lista = "\n".join(f"{i}: {frases[i][2]}" for i in sem_foto)
+                data, _ = llm.ask(
+                    f"Para cada frase numerada abaixo, escreva um destaque de 2 a 5 palavras para aparecer grande na "
+                    f"tela: o nome, o ano, o número ou a ideia central QUE A FRASE DIZ (não invente nada que não "
+                    f"esteja nela). Idioma: o mesmo das frases. Sem ponto final.\n{lista}\n\n"
+                    'Responda só JSON: {"destaques": {"<número>": "texto"}}', want_json=True, temperature=0.2)
+                for k, v in (data.get("destaques") or {}).items():
+                    if str(k).isdigit() and isinstance(v, str) and 0 < len(v) <= 48:
+                        destaques[int(k)] = v.strip()
+            except Exception as e:  # noqa: BLE001
+                print(f"  destaques indisponíveis: {e}", flush=True)
         used, last, plan = {}, None, []
         for s0, s1, fi in spans:
             n = max(1, math.ceil((s1 - s0) / 5.0))
             step = (s1 - s0) / n
             own = sorted([x for x in kept if x[2] == fi], key=lambda x: -x[1])
-            num = cartela.numero(frases[fi][2]) if not own else None
+            num = (cartela.numero(frases[fi][2]) or destaques.get(fi)) if not own else None
             for j in range(n):
                 livres = [x for x in own if x[0] != last]
                 if livres:
@@ -158,7 +174,9 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
                                                          -x[1]))
                     c = resto[0][0]
                     # sem foto própria e a melhor opção já cansou de aparecer: número da frase na tela
-                    if num and (uso.get(c, 0) >= 2 or used.get(c, 0) >= 1):
+                    cansada = (uso.get(c, 0) >= 2 or used.get(c, 0) >= 1
+                               or (c.name.startswith(("px_", "pb_")) and uso.get(c, 0) >= 1))
+                    if num and cansada:
                         card = work / f"{name}_num_{bi:02d}_{fi:02d}.jpg"
                         try:
                             cartela.fazer(num, b.get("titulo_capitulo", "") or assunto, card, vertical=vertical)
