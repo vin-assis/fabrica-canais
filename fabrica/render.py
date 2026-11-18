@@ -31,7 +31,8 @@ def join_audio(parts, out):
     starts, t, lines = [], 0.0, []
     for i, p in enumerate(parts):
         wav = work / f"a_{i:02d}.wav"
-        run(["ffmpeg", "-v", "error", "-y", "-i", str(p), "-ar", "24000", "-ac", "1", str(wav)])
+        src = Path(p).with_suffix(".wav") if Path(p).with_suffix(".wav").exists() else p  # wav limpo, sem passar pelo mp3
+        run(["ffmpeg", "-v", "error", "-y", "-i", str(src), "-ar", "24000", "-ac", "1", str(wav)])
         starts.append(t)
         t += duration(wav)
         lines.append(f"file '{wav.name}'")
@@ -73,6 +74,37 @@ def build_track(seg_durations, seg_clips, size, out, seed=0):
             pieces.append(p)
             filled += piece
             k += 1
+    lst = work / "list.txt"
+    lst.write_text("\n".join(f"file '{p.name}'" for p in pieces))
+    run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(out)])
+    return out
+
+
+def build_timeline(scenes, size, out, total, seed=0, fps=30):
+    """Trilha de vídeo a partir de [início, fim, cena] em segundos, cortada no quadro exato."""
+    w, h = size
+    out = Path(out)
+    work = out.parent / (out.stem + "_pieces")
+    work.mkdir(exist_ok=True)
+    rnd = random.Random(seed)
+    vf = (f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},fps={fps},setsar=1,"
+          f"eq=saturation=1.05:contrast=1.03,format=yuv420p")
+    scenes = sorted(scenes, key=lambda x: x[0])
+    if scenes:
+        scenes[0][0] = 0.0
+        scenes[-1][1] = total
+    pieces = []
+    for k, (t0, t1, clip) in enumerate(scenes):
+        f0, f1 = round(t0 * fps), round(t1 * fps)
+        if f1 <= f0:
+            continue
+        nfr = f1 - f0
+        cd = duration(clip)
+        start = rnd.uniform(0, max(0.0, cd - nfr / fps - 0.1)) if cd > nfr / fps + 0.2 else 0.0
+        p = work / f"p_{k:04d}.mp4"
+        run(["ffmpeg", "-v", "error", "-y", "-stream_loop", "-1", "-ss", f"{start:.2f}", "-i", str(clip),
+             "-frames:v", str(nfr), "-an", "-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", str(p)])
+        pieces.append(p)
     lst = work / "list.txt"
     lst.write_text("\n".join(f"file '{p.name}'" for p in pieces))
     run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(out)])

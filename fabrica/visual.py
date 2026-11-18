@@ -39,30 +39,22 @@ def frame_of(video, out, t=1.2):
     return Path(out) if Path(out).exists() else None
 
 
-def conferir(image_path, narracao, assunto):
-    """Nota de 0 a 10 para o quanto a imagem mostra o que a frase diz. None se não deu para conferir."""
-    if _disabled["vision"] or not _key():
-        return None
+def _small(image_path):
     img = Path(image_path)
     if img.suffix.lower() not in (".jpg", ".jpeg", ".png"):
-        img = frame_of(img, img.with_suffix(".check.jpg"))
-        if not img:
-            return None
-    else:
-        small = img.with_suffix(".small.jpg")
-        if not small.exists():
-            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(img), "-vf", "scale=512:-2", "-q:v", "4",
-                            str(small)], check=False)
-        img = small if small.exists() else img
+        return frame_of(img, img.with_suffix(".check.jpg"))
+    small = img.with_suffix(".small.jpg")
+    if not small.exists():
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(img), "-vf", "scale=512:-2", "-q:v", "4",
+                        str(small)], check=False)
+    return small if small.exists() else img
+
+
+def _ask(img, prompt):
     b64 = base64.b64encode(img.read_bytes()).decode()
-    prompt = (f'Assunto do vídeo: "{assunto}". Frase narrada neste momento: "{narracao[:600]}".\n'
-              "Dê uma nota de 0 a 10 para o quanto ESTA imagem mostra algo diretamente ligado à frase ou ao assunto "
-              "(o objeto, o lugar, a época ou a ação citados). Paisagem, objeto ou pessoa sem relação = 0 a 3. "
-              "Genérico mas coerente (ex.: dinheiro numa frase sobre lucro) = 5 a 6. Mostra o que é citado = 8 a 10. "
-              'Responda só JSON: {"nota": 0, "mostra": "o que a imagem mostra em 5 palavras"}')
     body = {"contents": [{"role": "user", "parts": [{"inlineData": {"mimeType": "image/jpeg", "data": b64}},
                                                     {"text": prompt}]}],
-            "generationConfig": {"temperature": 0, "responseMimeType": "application/json", "maxOutputTokens": 200}}
+            "generationConfig": {"temperature": 0, "responseMimeType": "application/json", "maxOutputTokens": 300}}
     for model in VISION_MODELS:
         for attempt in range(3):
             _wait()
@@ -74,20 +66,50 @@ def conferir(image_path, narracao, assunto):
             if r.status_code == 200:
                 try:
                     parts = r.json()["candidates"][0]["content"]["parts"]
-                    data = llm.parse_json("".join(p.get("text", "") for p in parts))
-                    return float(data.get("nota", 0))
+                    return llm.parse_json("".join(p.get("text", "") for p in parts))
                 except Exception:  # noqa: BLE001
                     return None
             if r.status_code == 429 and attempt < 2:
                 time.sleep(20)
                 continue
-            if r.status_code in (400, 404):
-                break
-            if r.status_code == 429:
-                break
+            break
     print("  conferência de imagens indisponível agora; seguindo sem filtro", flush=True)
     _disabled["vision"] = True
     return None
+
+
+def avaliar(image_path, frases, assunto):
+    """Olha a imagem e diz (nota 0-10, índice da frase que ela ilustra melhor). (None, None) se não deu."""
+    if _disabled["vision"] or not _key():
+        return None, None
+    img = _small(image_path)
+    if not img:
+        return None, None
+    lista = "\n".join(f"{i}: {f[:220]}" for i, f in enumerate(frases))
+    prompt = (f'Assunto do vídeo: "{assunto}". Frases narradas neste trecho, numeradas:\n{lista}\n\n'
+              "Esta imagem vai aparecer na tela enquanto UMA dessas frases é dita. Escolha a frase que ela ilustra "
+              "melhor e dê nota de 0 a 10 para o quanto ela mostra ESPECIFICAMENTE o que a frase cita "
+              "(a empresa, o produto, o objeto, a pessoa, o lugar, a época ou o fato).\n"
+              "- Mostra exatamente o que é citado (ex.: câmera Kodak antiga numa frase sobre a câmera de 1888) = 8 a 10.\n"
+              "- Relacionado ao assunto mas não ao que a frase diz (ex.: prédio da Kodak numa frase sobre falência) = 6 a 7.\n"
+              "- Imagem de banco genérica (pessoa qualquer, natureza, praia, laboratório, escritório, câmera de "
+              "outra marca atual) = no máximo 4.\n"
+              "- Logotipo, faixa, cartaz ou texto de outra coisa, ou sem relação = 0 a 2.\n"
+              'Responda só JSON: {"frase": 0, "nota": 0, "mostra": "o que a imagem mostra em até 6 palavras"}')
+    data = _ask(img, prompt)
+    if not data:
+        return None, None
+    try:
+        fi = int(data.get("frase", 0))
+    except (TypeError, ValueError):
+        fi = 0
+    return float(data.get("nota", 0)), max(0, min(len(frases) - 1, fi))
+
+
+def conferir(image_path, narracao, assunto):
+    """Compatibilidade: nota de 0 a 10 contra o trecho inteiro."""
+    nota, _ = avaliar(image_path, [narracao[:600]], assunto)
+    return nota
 
 
 def gerar(prompt, out_path, vertical=False):

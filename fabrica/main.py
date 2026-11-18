@@ -8,6 +8,7 @@ Uso:
 import argparse
 import datetime as dt
 import json
+import math
 import os
 import shutil
 import sys
@@ -54,68 +55,70 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
     work.mkdir(parents=True, exist_ok=True)
     st = stock.Stock(ROOT / ".cache" / "stock", "portrait" if vertical else "landscape", offline)
     audio_parts, all_words = [], []
-    seg_words = []
+    seg_words, seg_sents = [], []
     for i, b in enumerate(blocks):
         mp3 = work / f"{name}_n{i:02d}.mp3"
-        _, words = tts.synth(b["narracao"], ch["voz"], ch.get("velocidade_voz", "+0%"), mp3, offline)
+        _, words, frases = tts.synth(b["narracao"], ch["voz"], ch.get("velocidade_voz", "+0%"), mp3, offline)
         audio_parts.append(mp3)
         seg_words.append(words)
+        seg_sents.append(frases)
     narration = work / f"{name}_narracao.wav"
     starts, total = render.join_audio(audio_parts, narration)
     for s, words in zip(starts, seg_words):
         all_words += [[w0 + s, w1 + s, t] for w0, w1, t in words]
     seg_dur = [(starts[i + 1] if i + 1 < len(starts) else total) - starts[i] for i in range(len(starts))]
-    seg_clips, ia_files, notas = [], [], {}
+    limiar = float(os.getenv("NOTA_MINIMA", "7"))
+    limiar_video = float(os.getenv("NOTA_MINIMA_VIDEO", "8"))  # vídeo de banco é genérico: exige mais
+    seg_scenes, ia_files, todas = [], [], []
     assunto = main_query or ""
     ia_max = int(os.getenv("IA_MAX_IMAGENS", "3" if vertical else "12"))
-    for bi, (b, need) in enumerate(zip(blocks, seg_dur)):
+
+    def src_of(c):
+        return c.with_name(c.name.split(".")[0] + ".jpg") if c.name.startswith("cm_") else c
+
+    def passa(c, nota):
+        if nota is None:
+            return True
+        return nota >= (limiar_video if c.name.startswith(("px_", "pb_")) else limiar)
+
+    for bi, (b, need, frases) in enumerate(zip(blocks, seg_dur, seg_sents)):
+        textos = [f[2] for f in frases]
         cand = []
-        # 1º fotos reais (Commons) do que a narração cita; 2º vídeos de banco
         for q in (b.get("fotos") or [])[:4]:
             cand += st.photos(q, n=3)
         queries = list(b.get("buscas") or [])[:4]
         if main_query and main_query not in queries:
             queries.append(main_query)
         for q in queries or ["abstract background"]:
-            if len(cand) >= 8:
+            if len(cand) >= 10:
                 break
             cand += st.clips(q, n=2)
-        # o Gemini olha cada cena e descarta o que não tem a ver com a frase
-        kept, rejected = [], []
+        cand = list(dict.fromkeys(cand))
+        # o Gemini olha cada cena, diz qual frase ela ilustra e se mostra mesmo o que é dito
+        kept, rejected = [], []  # kept: [clip, nota, frase]
         for c in cand:
             if c.name.startswith("ph_"):
-                rejected.append((0, c))
                 continue
-            src = c
-            if c.name.startswith("cm_"):
-                src = c.with_name(c.name.split(".")[0] + ".jpg")
-            if c not in notas:
-                notas[c] = visual.conferir(src, b["narracao"], assunto) if not offline else None
-            n = notas[c]
-            (kept if n is None or n >= 6 else rejected).append(c if n is None or n >= 6 else (n, c))
-        want = min(7, max(2, int(need // 6) + 1))
-        # antes de gerar: reaproveita fotos reais aprovadas de outros blocos que também combinem com esta frase
-        if len(kept) < 2:
-            for c, n in list(notas.items()):
-                if len(kept) >= 2:
+            nota, fi = (None, None) if offline else visual.avaliar(src_of(c), textos, assunto)
+            if passa(c, nota):
+                kept.append([c, nota if nota is not None else 6, fi])
+            else:
+                rejected.append([c, nota or 0, fi])
+        # poucas cenas boas: tenta fotos aprovadas de outros blocos que mostrem o que este bloco diz
+        if len(kept) < 3:
+            for c, n0, _ in sorted(todas, key=lambda x: -x[1]):
+                if len(kept) >= 3:
                     break
-                if c in kept or c.name.startswith("ph_") or n is None or n < 6:
+                if any(c == k[0] for k in kept) or c.name.startswith(("px_", "pb_")):
                     continue
-                src = c.with_name(c.name.split(".")[0] + ".jpg") if c.name.startswith("cm_") else c
-                n2 = visual.conferir(src, b["narracao"], assunto)
-                if n2 is not None and n2 >= 6:
-                    kept.append(c)
-        # IA só quando não sobrou NENHUMA ou só UMA cena real boa no bloco (e no máximo 2 por bloco)
-        if len(kept) >= 2:
-            want = len(kept)
-        else:
-            want = min(want, len(kept) + 2)
-        # onde faltar cena boa, a IA gera a imagem do que está sendo narrado
-        prompts = list(b.get("cenas_ia") or [])
-        if not prompts:
-            prompts = [f"{assunto}: {b.get('titulo_capitulo', '')}"]
+                nota, fi = visual.avaliar(src_of(c), textos, assunto)
+                if nota is not None and nota >= limiar:
+                    kept.append([c, nota, fi])
+        # IA só quando faltam cenas boas de verdade (menos de 2 no bloco)
+        want = 2
+        prompts = list(b.get("cenas_ia") or []) or [f"{assunto}: {b.get('titulo_capitulo', '')}"]
         k = 0
-        while len(kept) < want and len(ia_files) < ia_max and not offline and k < want:
+        while len(kept) < want and len(ia_files) < ia_max and not offline and k < 2:
             pr = prompts[k % len(prompts)]
             img = visual.gerar(pr, work / f"{name}_ia_{bi:02d}_{k}.png", vertical=vertical)
             k += 1
@@ -124,23 +127,38 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
             clip = st._photo_clip(img)
             if clip:
                 ia_files.append(img)
-                kept.append(clip)
-        if not kept:  # sem nada aprovado: usa o melhor que sobrou para não ficar tela vazia
-            kept = [c for _, c in sorted(rejected, key=lambda x: -x[0])][:3] or cand[:1] or st.clips("abstract", 1)
-        log(f"  bloco {bi+1}: {len(cand)} cenas achadas, {len(kept)} usadas "
-            f"({sum(1 for c in kept if '_ia_' in c.name)} geradas por IA)")
-        seg_clips.append(kept)
-    # bloco com poucas cenas para muito tempo repete a mesma imagem: completa com cenas de outros blocos
-    pool = [c for cl in seg_clips for c in cl]
-    import random as _r
-    rnd = _r.Random(seed)
-    for i, (need, cl) in enumerate(zip(seg_dur, seg_clips)):
-        want = int(need // 5) + 1
-        extra = [c for c in pool if c not in cl]
-        rnd.shuffle(extra)
-        while len(cl) < min(want, 8) and extra:
-            cl.append(extra.pop())
-    track = render.build_track(seg_dur, seg_clips, size, work / f"{name}_trilha.mp4", seed=seed)
+                kept.append([clip, 7, None])
+        if not kept:  # nada aprovado: o melhor que sobrou, para não ficar tela vazia
+            kept = sorted(rejected, key=lambda x: -x[1])[:2] or [[x, 0, None] for x in st.clips("abstract", 1)]
+        todas += [x for x in kept if not x[0].name.startswith(("px_", "pb_")) and "_ia_" not in x[0].name]
+        # cada frase ganha a cena que a ilustra; frase sem cena própria usa a melhor do bloco ainda pouco usada
+        bounds = [0.0] + [f[0] for f in frases[1:]] + [need]
+        spans = []
+        for i in range(len(frases)):
+            s0, s1 = bounds[i], bounds[i + 1]
+            if spans and (s1 - s0) < 1.6:
+                spans[-1][1] = s1  # frase curtinha fica na cena da anterior
+            else:
+                spans.append([s0, s1, i])
+        used, last, plan = {}, None, []
+        for s0, s1, fi in spans:
+            n = max(1, math.ceil((s1 - s0) / 5.0))
+            step = (s1 - s0) / n
+            own = sorted([x for x in kept if x[2] == fi], key=lambda x: -x[1])
+            for j in range(n):
+                pool = [x for x in own if x[0] != last] or \
+                       sorted([x for x in kept if x[0] != last] or kept, key=lambda x: (used.get(x[0], 0), -x[1]))
+                c = pool[0][0]
+                if own and pool[0] in own:
+                    own.remove(pool[0])
+                used[c] = used.get(c, 0) + 1
+                last = c
+                plan.append([starts[bi] + s0 + j * step, starts[bi] + s0 + (j + 1) * step, c])
+        log(f"  bloco {bi+1}: {len(cand)} cenas achadas, {len(kept)} aprovadas "
+            f"({sum(1 for x in kept if '_ia_' in x[0].name)} por IA), "
+            f"{sum(1 for x in kept if x[2] is not None)} ligadas a uma frase")
+        seg_scenes += plan
+    track = render.build_timeline(seg_scenes, size, work / f"{name}_trilha.mp4", total, seed=seed)
     subs = render.write_ass(all_words, work / f"{name}.ass", size, vertical=vertical, hook=hook)
     out = work / f"{name}.mp4"
     render.final_mix(track, narration, subs, out, music_dir=ROOT / "assets" / "music", total=total)

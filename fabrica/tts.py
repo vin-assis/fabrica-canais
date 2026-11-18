@@ -86,39 +86,164 @@ def align(text, audio_path):
     return words
 
 
+def _sentences(text):
+    """Frases para narrar uma a uma. Pedaços muito curtos vão junto com a frase seguinte."""
+    import re
+    parts = [x.strip() for x in re.split(r"(?<=[.!?…])\s+", text.strip()) if x.strip()]
+    out = []
+    for x in parts:
+        if out and len(out[-1].split()) < 3:
+            out[-1] = out[-1] + " " + x
+        else:
+            out.append(x)
+    return out or [text.strip()]
+
+
+async def _edge_bytes(text, voice, rate):
+    import edge_tts
+    com = edge_tts.Communicate(text, voice, rate=rate)
+    data = bytearray()
+    async for chunk in com.stream():
+        if chunk["type"] == "audio":
+            data += chunk["data"]
+    return bytes(data)
+
+
+def _read_wav(path):
+    import wave
+    import numpy as np
+    with wave.open(str(path)) as w:
+        return np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float32) / 32768
+
+
+def _write_wav(path, x, sr=24000):
+    import wave
+    import numpy as np
+    y = (np.clip(x, -1, 1) * 32767).astype(np.int16)
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sr)
+        w.writeframes(y.tobytes())
+
+
+def tem_corte(x, sr=24000):
+    """Procura sinal de áudio picotado: som que começa 'no meio' (forte de uma vez) logo depois de silêncio total.
+    Medido em relação ao pico da própria frase, então não depende do volume."""
+    import numpy as np
+    a = np.abs(x)
+    n = sr // 50  # 20 ms
+    if len(a) < sr // 10:
+        return False
+    peak = a.max() or 1.0
+    prev = np.convolve(a, np.ones(n) / n, "full")[:len(a)]
+    abrupt = np.where((a[n:] > 0.3 * peak) & (prev[n - 1:-1] < 0.004 * peak))[0]
+    return len(abrupt) > 0
+
+
+def _one(sentence, voice, rate, tmp):
+    """Narra uma frase e só aceita se o mp3 decodificar sem erro e sem corte. Devolve o áudio limpo ou None."""
+    mp3, wav, cut = tmp.with_suffix(".mp3"), tmp.with_suffix(".wav"), tmp.with_suffix(".cut.wav")
+    data = asyncio.run(_edge_bytes(sentence, voice, rate))
+    if len(data) < 800:
+        raise RuntimeError("sem áudio")
+    mp3.write_bytes(data)
+    p = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(mp3), "-ar", "24000", "-ac", "1", str(wav)],
+                       capture_output=True, text=True)
+    quebrado = p.returncode != 0 or bool(p.stderr.strip())
+    if quebrado:  # mp3 com quadro quebrado: guarda uma versão remendada só como último recurso
+        print(f"    mp3 com defeito: {p.stderr.strip()[:120]}", flush=True)
+        subprocess.run(["ffmpeg", "-v", "quiet", "-y", "-err_detect", "ignore_err", "-i", str(mp3), "-ar", "24000",
+                        "-ac", "1", str(wav)], check=True)
+    corte = quebrado or tem_corte(_read_wav(wav))  # testa antes de aparar, com o silêncio original em volta
+    # tira o silêncio das pontas (as pausas são colocadas por nós, iguais em todo o vídeo)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(wav), "-af",
+                    "silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.04,areverse,"
+                    "silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.08,areverse,"
+                    "afade=t=in:d=0.008", str(cut)], check=True)
+    x = _read_wav(cut)
+    if corte:
+        _one.suspeito = x  # guarda: se nenhuma tentativa vier limpa, usa a última
+        return None
+    return x
+
+
+PAUSA = {".": 0.42, "!": 0.48, "?": 0.5, "…": 0.5, ":": 0.32, ";": 0.32}
+
+
 def synth(text, voice, rate, out_path, offline=False):
-    """Gera out_path (.mp3). Retorna (duração_em_s, palavras[[início, fim, texto]])."""
+    """Gera out_path (.mp3) narrando frase por frase.
+    Retorna (duração_em_s, palavras[[início, fim, texto]], frases[[início, fim, texto]])."""
+    import numpy as np
     out_path = Path(out_path)
+    sents = _sentences(text)
     if offline:
         toks = text.split()
         dur = max(1.0, len(toks) / 2.6)
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono",
                         "-t", f"{dur:.2f}", "-c:a", "libmp3lame", "-b:a", "64k", str(out_path)], check=True)
         step = dur / len(toks)
-        return dur, [[i * step, (i + 1) * step * 0.95, t] for i, t in enumerate(toks)]
-    last_err = None
+        words = [[i * step, (i + 1) * step * 0.95, t] for i, t in enumerate(toks)]
+        frases, k = [], 0
+        for s in sents:
+            n = len(s.split())
+            frases.append([k * step, (k + n) * step, s])
+            k += n
+        return dur, words, frases
     fallback = {"en": ["en-US-GuyNeural", "en-US-ChristopherNeural", "en-US-AndrewNeural"],
                 "pt": ["pt-BR-AntonioNeural", "pt-BR-FranciscaNeural"]}[voice[:2]]
+    tmpdir = out_path.parent / (out_path.stem + "_frases")
+    tmpdir.mkdir(exist_ok=True)
+    last_err = None
     for v in [voice] + [f for f in fallback if f != voice]:
-        for _ in range(2):
-            try:
-                words = asyncio.run(_edge(text, v, rate, out_path))
-                if out_path.stat().st_size > 1000:
-                    if v != voice:
-                        print(f"  voz {voice} falhou, usando {v}", flush=True)
-                    # mp3 do serviço às vezes vem com quadros quebrados: regrava limpo antes de usar
-                    clean = out_path.with_suffix(".clean.wav")
-                    subprocess.run(["ffmpeg", "-v", "error", "-y", "-err_detect", "ignore_err", "-i", str(out_path),
-                                    "-ar", "24000", "-ac", "1", str(clean)], check=True)
-                    clean.replace(out_path.with_suffix(".wav"))
-                    wav = out_path.with_suffix(".wav")
-                    try:
-                        words = align(text, wav)
-                    except Exception as e:  # noqa: BLE001
-                        print(f"  alinhamento falhou ({e}); usando tempos do serviço", flush=True)
-                    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(wav), "-c:a", "libmp3lame", "-b:a",
-                                    "128k", str(out_path)], check=True)
-                    return _probe_duration(out_path), words
-            except Exception as e:  # noqa: BLE001
-                last_err = e
+        pieces, ok = [], True
+        for i, s in enumerate(sents):
+            x = None
+            for attempt in range(4):
+                try:
+                    x = _one(s, v, rate, tmpdir / f"f{i:03d}_{attempt}")
+                except Exception as e:  # noqa: BLE001
+                    last_err = e
+                    x = None
+                if x is not None:
+                    break
+                if attempt == 1:
+                    print(f"  frase {i+1} veio com defeito, pedindo de novo", flush=True)
+            if x is None and getattr(_one, "suspeito", None) is not None:
+                print(f"  frase {i+1}: usando versão com possível defeito (nenhuma veio limpa)", flush=True)
+                x = _one.suspeito
+            _one.suspeito = None
+            if x is None:
+                ok = False
+                break
+            pieces.append(x)
+        if not ok:
+            if pieces:  # a voz funcionou mas uma frase nunca veio limpa
+                print(f"  frase sem versão limpa: {sents[len(pieces)][:60]}", flush=True)
+            continue
+        if v != voice:
+            print(f"  voz {voice} falhou, usando {v}", flush=True)
+        sr, audio, frases, words, t = 24000, [], [], [], 0.0
+        for i, (s, x) in enumerate(zip(sents, pieces)):
+            d = len(x) / sr
+            frases.append([t, t + d, s])
+            toks = s.split()
+            weights = [len(tok) + 2 for tok in toks]
+            tot = sum(weights) or 1
+            tw = t
+            for tok, wgt in zip(toks, weights):
+                dw = d * wgt / tot
+                words.append([tw, tw + dw * 0.95, tok])
+                tw += dw
+            audio.append(x)
+            t += d
+            if i < len(sents) - 1:
+                gap = PAUSA.get(s.rstrip()[-1:], 0.3)
+                audio.append(np.zeros(int(gap * sr), dtype=np.float32))
+                t += gap
+        wav = out_path.with_suffix(".wav")
+        _write_wav(wav, np.concatenate(audio), sr)
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(wav), "-c:a", "libmp3lame", "-b:a", "192k",
+                        str(out_path)], check=True)
+        return t, words, frases
     raise RuntimeError(f"narração falhou: {last_err}")
