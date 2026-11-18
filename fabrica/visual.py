@@ -97,13 +97,19 @@ def avaliar(image_path, frases, assunto):
               "- Logotipo, faixa, cartaz ou texto de outra coisa, ou sem relação = 0 a 2.\n"
               'Responda só JSON: {"frase": 0, "nota": 0, "mostra": "o que a imagem mostra em até 6 palavras"}')
     data = _ask(img, prompt)
-    if not data:
+    if isinstance(data, list):  # às vezes o modelo devolve [ {...} ]
+        data = next((d for d in data if isinstance(d, dict)), None)
+    if not isinstance(data, dict):
         return None, None
     try:
         fi = int(data.get("frase", 0))
     except (TypeError, ValueError):
         fi = 0
-    return float(data.get("nota", 0)), max(0, min(len(frases) - 1, fi))
+    try:
+        nota = float(data.get("nota", 0))
+    except (TypeError, ValueError):
+        return None, None
+    return nota, max(0, min(len(frases) - 1, fi))
 
 
 def conferir(image_path, narracao, assunto):
