@@ -16,7 +16,7 @@ from pathlib import Path
 
 import yaml
 
-from . import render, script, stock, thumb, tts, visual
+from . import cartela, render, script, stock, thumb, tts, visual
 
 ROOT = Path(__file__).resolve().parent.parent
 LONG = (1920, 1080)
@@ -69,7 +69,7 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
     seg_dur = [(starts[i + 1] if i + 1 < len(starts) else total) - starts[i] for i in range(len(starts))]
     limiar = float(os.getenv("NOTA_MINIMA", "7"))
     limiar_video = float(os.getenv("NOTA_MINIMA_VIDEO", "8"))  # vídeo de banco é genérico: exige mais
-    seg_scenes, ia_files, todas = [], [], []
+    seg_scenes, ia_files, todas, uso = [], [], [], {}  # uso: quantas vezes cada cena já entrou no vídeo
     assunto = main_query or ""
     ia_max = int(os.getenv("IA_MAX_IMAGENS", "3" if vertical else "12"))
 
@@ -84,13 +84,13 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
     for bi, (b, need, frases) in enumerate(zip(blocks, seg_dur, seg_sents)):
         textos = [f[2] for f in frases]
         cand = []
-        for q in (b.get("fotos") or [])[:4]:
-            cand += st.photos(q, n=3)
+        for q in (b.get("fotos") or [])[:6]:
+            cand += st.photos(q, n=4)
         queries = list(b.get("buscas") or [])[:4]
         if main_query and main_query not in queries:
             queries.append(main_query)
         for q in queries or ["abstract background"]:
-            if len(cand) >= 10:
+            if len(cand) >= 14:
                 break
             cand += st.clips(q, n=2)
         cand = list(dict.fromkeys(cand))
@@ -145,13 +145,31 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
             n = max(1, math.ceil((s1 - s0) / 5.0))
             step = (s1 - s0) / n
             own = sorted([x for x in kept if x[2] == fi], key=lambda x: -x[1])
+            num = cartela.numero(frases[fi][2]) if not own else None
             for j in range(n):
-                pool = [x for x in own if x[0] != last] or \
-                       sorted([x for x in kept if x[0] != last] or kept, key=lambda x: (used.get(x[0], 0), -x[1]))
-                c = pool[0][0]
-                if own and pool[0] in own:
-                    own.remove(pool[0])
+                livres = [x for x in own if x[0] != last]
+                if livres:
+                    esc = livres[0]
+                    own.remove(esc)
+                    c = esc[0]
+                else:
+                    resto = [x for x in kept if x[0] != last] or kept
+                    resto = sorted(resto, key=lambda x: (uso.get(x[0], 0) >= 3, used.get(x[0], 0), uso.get(x[0], 0),
+                                                         -x[1]))
+                    c = resto[0][0]
+                    # sem foto própria e a melhor opção já cansou de aparecer: número da frase na tela
+                    if num and (uso.get(c, 0) >= 2 or used.get(c, 0) >= 1):
+                        card = work / f"{name}_num_{bi:02d}_{fi:02d}.jpg"
+                        try:
+                            cartela.fazer(num, b.get("titulo_capitulo", "") or assunto, card, vertical=vertical)
+                            clip = st._photo_clip(card)
+                        except Exception as e:  # noqa: BLE001
+                            print(f"  cartela falhou: {e}", flush=True)
+                            clip = None
+                        if clip:
+                            c, num = clip, None  # um número por frase
                 used[c] = used.get(c, 0) + 1
+                uso[c] = uso.get(c, 0) + 1
                 last = c
                 plan.append([starts[bi] + s0 + j * step, starts[bi] + s0 + (j + 1) * step, c])
         log(f"  bloco {bi+1}: {len(cand)} cenas achadas, {len(kept)} aprovadas "
