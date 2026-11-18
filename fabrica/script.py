@@ -72,7 +72,33 @@ def research(topic, ch):
     except llm.LLMError as e:
         print(f"  pesquisa no Google indisponível no plano atual ({str(e)[:120]})", flush=True)
 
-    if not material and not google_notes:
+    oficial_txt = ""
+    dominios = ch.get("fontes_oficiais") or []
+    if dominios:  # canal de dados: números só de fonte oficial
+        from . import fontes
+        try:
+            oficial_txt, o_sources = llm.ask(
+                f'Pesquise SOMENTE em sites oficiais (leis no planalto.gov.br, portais da transparência, sites da '
+                f'Câmara, do Senado, do STF, do CNJ, do Banco Central e, para outros países, sites de governo e '
+                f'tribunais oficiais como uscourts.gov) os números atuais sobre "{topic}". Para cada número dê o '
+                f'valor exato, a data ou o ano a que se refere e o site oficial de onde veio. Separe salário-base '
+                f'de benefícios. Se um número não estiver num site oficial, diga que não encontrou.',
+                search=True, temperature=0.1)
+        except llm.LLMError as e:
+            raise RuntimeError(f"pesquisa oficial indisponível ({str(e)[:120]}): vídeo não sai sem fonte oficial")
+        ofs = [x for x in o_sources if fontes.oficial(x.get("name", "") + " " + x.get("url", ""), dominios)]
+        print(f"  fontes oficiais: {len(ofs)} de {len(o_sources)} ({', '.join(x.get('name', '') for x in ofs)[:200]})",
+              flush=True)
+        if not ofs:
+            raise RuntimeError(f"nenhuma fonte oficial encontrada para '{topic}': vídeo não sai")
+        sources += ofs
+        if any(w in topic.lower() for w in ("eua", "estados unidos", "dólar", "dolar", "país", "países", "reino unido",
+                                             "americano", "mundo")):
+            cot = fontes.ptax_dolar()
+            if cot:
+                oficial_txt += "\n\n" + cot
+
+    if not material and not google_notes and not oficial_txt:
         raise RuntimeError(f"nenhuma fonte encontrada para '{topic}' — tema pulado para não inventar fatos")
 
     prompt = f"""Monte um dossiê factual sobre "{topic}" usando SOMENTE o material abaixo. Não acrescente nada
@@ -83,7 +109,9 @@ mitos comuns (e o que é verdade), e o que é incerto ou o material não cobre. 
 MATERIAL:
 {material[:40000]}
 
-{('PESQUISA NO GOOGLE:' + chr(10) + google_notes[:15000]) if google_notes else ''}"""
+{('PESQUISA NO GOOGLE:' + chr(10) + google_notes[:15000]) if google_notes else ''}
+
+{('FONTES OFICIAIS (use estes números; número que só aparece em outra parte do material não entra no dossiê):' + chr(10) + oficial_txt[:15000]) if oficial_txt else ''}"""
     notes, _ = llm.ask(prompt, temperature=0.2)
     return notes, sources, bool(sources)
 

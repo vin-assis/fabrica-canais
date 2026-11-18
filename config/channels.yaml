@@ -56,6 +56,7 @@ canais:
     duracao_max: 11
     shorts_por_video: 3
     categoria_youtube: "NEWS_POLITICS"
+    fontes_oficiais: [".gov.br", ".leg.br", ".jus.br", ".gov", "gov.uk", "parliament.uk", "europa.eu", "bcb.gov.br"]
     hashtags: ["#politica", "#dinheiropublico", "#curiosidades"]
 
   explica:

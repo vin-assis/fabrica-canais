@@ -88,6 +88,7 @@ jobs:
           PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
           LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_SEARCH_MODEL: ${{ vars.GEMINI_SEARCH_MODEL || 'gemini-3.8-flash' }}
           CANAL: ${{ steps.canal.outputs.canal }}
           TEMA: ${{ matrix.tema }}
         run: |
