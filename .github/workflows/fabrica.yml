@@ -8,11 +8,15 @@ on:
   workflow_dispatch:
     inputs:
       canal:
-        description: "Canal (pt ou en)"
+        description: "Canal (pt, en, poder, explica)"
         required: true
         default: "pt"
       tema:
         description: "Tema específico (opcional)"
+        required: false
+        default: ""
+      temas:
+        description: "Vários temas de uma vez, separados por ; (cada um vira um vídeo, em paralelo)"
         required: false
         default: ""
 
@@ -20,13 +24,37 @@ permissions:
   contents: write
 
 concurrency:
-  group: fabrica-${{ github.event.inputs.canal || github.event.schedule }}
+  group: fabrica-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
-  produzir:
+  plano:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    outputs:
+      lista: ${{ steps.p.outputs.lista }}
+    steps:
+      - id: p
+        env:
+          TEMA: ${{ github.event.inputs.tema }}
+          TEMAS: ${{ github.event.inputs.temas }}
+        run: |
+          python3 - <<'PY' >> $GITHUB_OUTPUT
+          import json, os
+          temas = [t.strip() for t in os.environ.get("TEMAS", "").split(";") if t.strip()]
+          if not temas:
+              temas = [os.environ.get("TEMA", "").strip()]
+          print("lista=" + json.dumps(temas, ensure_ascii=False))
+          PY
+
+  produzir:
+    needs: plano
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        tema: ${{ fromJSON(needs.plano.outputs.lista) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -61,7 +89,7 @@ jobs:
           LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           CANAL: ${{ steps.canal.outputs.canal }}
-          TEMA: ${{ github.event.inputs.tema }}
+          TEMA: ${{ matrix.tema }}
         run: |
           if [ -n "$TEMA" ]; then
             python -m fabrica.main --canal "$CANAL" --tema "$TEMA"
@@ -74,7 +102,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           C=${{ steps.canal.outputs.canal }}
-          TAG="$C-$(date -u +%Y%m%d-%H%M)"
+          TAG="$C-$(date -u +%Y%m%d-%H%M)-${{ strategy.job-index }}"
           TITLE=$(python -c "import json;print(json.load(open('dist/$C/metadata.json'))['titulo'])")
           gh release create "$TAG" dist/$C/* --title "[$C] $TITLE" --notes-file dist/$C/relatorio.md
           echo "Pacote: https://github.com/${{ github.repository }}/releases/tag/$TAG" >> $GITHUB_STEP_SUMMARY
@@ -85,4 +113,5 @@ jobs:
           git config user.email "fabrica-bot@users.noreply.github.com"
           git add state/
           git commit -m "histórico: ${{ steps.canal.outputs.canal }} $(date -u +%F)" || exit 0
-          git pull --rebase -q && git push -q
+          for i in 1 2 3 4; do git pull --rebase -q && git push -q && exit 0; git rebase --abort 2>/dev/null; sleep $((RANDOM % 20 + 5)); done
+          echo "histórico não salvo (outro vídeo salvou ao mesmo tempo); os temas foram dados à mão" 
