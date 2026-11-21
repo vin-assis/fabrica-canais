@@ -20,7 +20,7 @@ canais:
     hashtags: ["#negocios", "#empreendedorismo", "#historia"]
 
   en:
-    nome: "Strange Old World"
+    nome: "Strange Old World"            # canal no YouTube: Strange_OldWorld
     idioma: "en-US"
     nicho: >
       The surprising origin stories of everyday things (foods, objects, habits, brands, inventions),
@@ -60,7 +60,7 @@ canais:
     hashtags: ["#politica", "#dinheiropublico", "#curiosidades"]
 
   explica:
-    nome: "Como É Feito"                 # nome provisório: troque quando o canal for criado
+    nome: "Como Foi Feito"               # canal no YouTube: Como_foi_feito
     idioma: "pt-BR"
     nicho: >
       Como as coisas do dia a dia são feitas e como funcionam: cerveja, gás de cozinha, amido de milho,
