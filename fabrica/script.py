@@ -123,6 +123,7 @@ def write_script(topic, ch, notes, sources):
     n_shorts = int(ch.get("shorts_por_video", 3))
     prompt = f"""Você é roteirista de um canal de documentários curtos no YouTube.
 Canal: {ch['nome']} | Nicho: {ch['nicho']}
+Nunca diga o nome do canal na narração nem nos Shorts; use "aqui no canal" ou "no canal".
 Público: {ch['publico']}
 Tom: {ch['tom']}
 {('Regras do canal: ' + ch['regras']) if ch.get('regras') else ''}
