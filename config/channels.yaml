@@ -13,8 +13,11 @@ canais:
     tom: "Narrador de documentário: direto, curioso, sem sensacionalismo, com números concretos e fontes."
     voz: "pt-BR-AntonioNeural"           # alternativas: pt-BR-FranciscaNeural, pt-BR-ThalitaMultilingualNeural
     velocidade_voz: "+6%"
-    duracao_min: 8                       # minutos do vídeo longo (8+ libera anúncios no meio)
-    duracao_max: 11
+    duracao_min: 18                      # minutos do vídeo longo (teste de nov/2026: vídeos longos)
+    duracao_max: 24
+    regras: >
+      Título no formato "MARCA ⎮ frase curta e dramática sobre a virada ou a queda"
+      (ex.: "MAPPIN ⎮ Como a Maior Loja do Brasil Quebrou"). Nome da marca em maiúsculas.
     shorts_por_video: 3                  # cortes verticais de 61 a 80 s (contam para o TikTok Creator Rewards)
     categoria_youtube: "EDUCATION"
     hashtags: ["#negocios", "#empreendedorismo", "#historia"]
@@ -29,8 +32,11 @@ canais:
     tom: "Warm documentary narrator: curious, precise, light humor, no clickbait lies."
     voz: "en-US-AndrewMultilingualNeural" # alternatives: en-US-GuyNeural, en-US-AvaMultilingualNeural, en-GB-RyanNeural
     velocidade_voz: "+0%"
-    duracao_min: 8
-    duracao_max: 11
+    duracao_min: 18
+    duracao_max: 24
+    regras: >
+      Title as a specific question or "The Strange Origin of X" / "The ENTIRE History of X"
+      (e.g. "When Did People Start Using Forks?"). No vague titles like "Fork Facts".
     shorts_por_video: 3
     categoria_youtube: "EDUCATION"
     hashtags: ["#history", "#science", "#didyouknow"]

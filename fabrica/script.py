@@ -107,7 +107,7 @@ fonte veio. Separe em: contexto, linha do tempo, números, viradas da história,
 mitos comuns (e o que é verdade), e o que é incerto ou o material não cobre. Escreva em {_lang_name(ch)}.
 
 MATERIAL:
-{material[:40000]}
+{material[:60000]}
 
 {('PESQUISA NO GOOGLE:' + chr(10) + google_notes[:15000]) if google_notes else ''}
 
@@ -121,6 +121,8 @@ def write_script(topic, ch, notes, sources):
     minutes = (ch["duracao_min"] + ch["duracao_max"]) / 2
     words = int(minutes * WPM[lang])
     n_shorts = int(ch.get("shorts_por_video", 3))
+    b_lo = max(9, round(minutes * 0.75))
+    b_hi = b_lo + 4
     prompt = f"""Você é roteirista de um canal de documentários curtos no YouTube.
 Canal: {ch['nome']} | Nicho: {ch['nicho']}
 Nunca diga o nome do canal na narração nem nos Shorts; use "aqui no canal" ou "no canal".
@@ -134,7 +136,7 @@ Tema: {topic}
 DOSSIÊ (use só fatos que estão aqui; o que não estiver aqui, não afirme):
 {notes[:30000]}
 
-Escreva o roteiro narrado com cerca de {words} palavras no total, dividido em 9 a 13 blocos.
+Escreva o roteiro narrado com cerca de {words} palavras no total, dividido em {b_lo} a {b_hi} blocos.
 Regras de roteiro:
 - Abertura (bloco 1, até 45 palavras): comece pelo fato mais surpreendente, faça uma promessa clara do que a pessoa vai descobrir. Nada de "Olá, pessoal", nada de "neste vídeo".
 - Cada bloco termina puxando o próximo (pergunta aberta, virada, "mas tem um detalhe").
@@ -142,6 +144,9 @@ Regras de roteiro:
 - Um ponto de vista próprio e uma lição prática para o público no final (isso é o que torna o vídeo original).
 - Último bloco: conclusão + convite natural para comentar uma pergunta específica. Sem pedir like de forma genérica.
 - Nunca afirme algo que o dossiê marcou como incerto sem dizer que é incerto.
+- Vídeo longo: use a profundidade do dossiê (contexto da época, personagens, números, consequências), não encha linguiça
+  nem repita ideias. Se o dossiê não sustenta o tamanho pedido, prefira um roteiro um pouco mais curto a inventar.
+- Nos primeiros 15 segundos, abra uma pergunta que só se responde no fim do vídeo.
 
 Para cada bloco, dê de 3 a 4 buscas de vídeo de banco de imagens EM INGLÊS (2 a 4 palavras) que mostrem LITERALMENTE o que a narração daquele bloco descreve: o objeto, o lugar ou a ação concreta ("rubber flip flops", "brazil beach crowd", "shoe factory machine", "fashion runway models"). A primeira busca de cada bloco deve conter o objeto principal do vídeo. Evite paisagens genéricas, cidades aleatórias e conceitos abstratos ("success", "business"). Nada de nomes de pessoas famosas ou logotipos.
 

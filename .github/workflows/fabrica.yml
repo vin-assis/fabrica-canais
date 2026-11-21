@@ -49,7 +49,7 @@ jobs:
   produzir:
     needs: plano
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 300
     strategy:
       fail-fast: false
       max-parallel: 6
