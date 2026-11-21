@@ -221,6 +221,7 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
             step = (s1 - s0) / n
             own = sorted([x for x in kept if x[2] == fi], key=lambda x: -x[1])
             num = cartela.numero(frases[fi][2]) or destaques.get(fi)
+            card_frase = None  # cartela desta frase: segura o resto da frase em vez de repetir foto
             for j in range(n):
                 livres = [x for x in own if x[0] != last and usos(x[0]) < 2]
                 if livres:
@@ -236,7 +237,9 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
                     c = resto[0][0]
                     cansada = not frescas or used.get(c, 0) >= 1
                     # sem foto própria e nada novo para mostrar: o destaque da frase vira cartela
-                    if num and cansada:
+                    if cansada and card_frase:
+                        c = card_frase
+                    elif num and cansada:
                         card = work / f"{name}_num_{bi:02d}_{fi:02d}_{j}.jpg"
                         try:
                             cartela.fazer(num, b.get("titulo_capitulo", "") or assunto, card, vertical=vertical)
@@ -245,7 +248,7 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
                             print(f"  cartela falhou: {e}", flush=True)
                             clip = None
                         if clip:
-                            c, num = clip, None  # uma cartela por frase
+                            c, num, card_frase = clip, None, clip  # uma cartela por frase
                 used[c] = used.get(c, 0) + 1
                 uso[chave(c)] = usos(c) + 1
                 last = c
