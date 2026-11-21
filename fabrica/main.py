@@ -193,7 +193,7 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
             own = sorted([x for x in kept if x[2] == fi], key=lambda x: -x[1])
             num = (cartela.numero(frases[fi][2]) or destaques.get(fi)) if not own else None
             for j in range(n):
-                livres = [x for x in own if x[0] != last]
+                livres = [x for x in own if x[0] != last and uso.get(x[0], 0) < 2]
                 if livres:
                     esc = livres[0]
                     own.remove(esc)

@@ -95,6 +95,7 @@ def avaliar(image_path, frases, assunto):
               "- Imagem de banco genérica (pessoa qualquer, natureza, praia, laboratório, escritório, câmera de "
               "outra marca atual) = no máximo 4.\n"
               "- Logotipo, faixa, cartaz ou texto de outra coisa, ou sem relação = 0 a 2.\n"
+              "- Droga, planta de maconha, arma, sangue, nudez ou rosto de celebridade sem ligação direta com a frase = 0.\n"
               'Responda só JSON: {"frase": 0, "nota": 0, "mostra": "o que a imagem mostra em até 6 palavras"}')
     data = _ask(img, prompt)
     if isinstance(data, list):  # às vezes o modelo devolve [ {...} ]
