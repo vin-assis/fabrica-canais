@@ -326,8 +326,8 @@ def main():
     if fotos:
         autores = []
         for nome, autor, lic, url in fotos:
-            a = (autor or "").replace("Unknown authorUnknown author", "Unknown author").strip() or "?"
-            k = f"{a} ({lic})"
+            quem = (autor or "").replace("Unknown authorUnknown author", "Unknown author").strip() or "?"
+            k = f"{quem} ({lic})"
             if k not in autores:
                 autores.append(k)
         desc += ("\n\nFotos do Wikimedia Commons: " if pt else "\n\nPhotos from Wikimedia Commons: ") + "; ".join(autores[:40]) + "."
