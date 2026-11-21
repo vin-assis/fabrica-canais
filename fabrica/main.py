@@ -106,6 +106,33 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
     def src_of(c):
         return c.with_name(c.name.split(".")[0] + ".jpg") if c.name.startswith("cm_") else c
 
+    hashes = {}
+
+    def chave(c):
+        """Fotos quase iguais (mesmo objeto, outro scan) contam como a mesma cena no limite de uso."""
+        if c in hashes:
+            return hashes[c]
+        k = c
+        if not c.name.startswith(("px_", "pb_")):
+            try:
+                from PIL import Image
+                im = Image.open(src_of(c)).convert("L").resize((9, 8))
+                px = list(im.getdata())
+                bits = sum(1 << i for i in range(64) if px[(i // 8) * 9 + i % 8] > px[(i // 8) * 9 + i % 8 + 1])
+                for c2, k2 in hashes.items():
+                    if isinstance(k2, int) and bin(k2 ^ bits).count("1") <= 10:
+                        k = k2
+                        break
+                else:
+                    k = bits
+            except Exception:  # noqa: BLE001
+                k = c
+        hashes[c] = k
+        return k
+
+    def usos(c):
+        return uso.get(chave(c), 0)
+
     def passa(c, nota):
         if nota is None:
             return True
@@ -131,6 +158,8 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
                 continue
             nota, fi = (None, None) if offline else visual.avaliar(src_of(c), textos, assunto)
             if passa(c, nota):
+                if any(chave(k[0]) == chave(c) for k in kept):
+                    continue  # mesma foto em outro scan
                 kept.append([c, nota if nota is not None else 6, fi])
             else:
                 rejected.append([c, nota or 0, fi])
@@ -172,7 +201,7 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
                 spans.append([s0, s1, i])
         # frases sem foto própria ganham um destaque curto (nome, ano, ideia central) para virar cartela
         destaques = {}
-        sem_foto = [i for _, _, i in spans if not any(x[2] == i for x in kept)]
+        sem_foto = [i for _, _, i in spans]  # todas: em vídeo longo a foto própria pode acabar
         if sem_foto and not offline:
             try:
                 lista = "\n".join(f"{i}: {frases[i][2]}" for i in sem_foto)
@@ -191,23 +220,24 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
             n = max(1, math.ceil((s1 - s0) / 5.0))
             step = (s1 - s0) / n
             own = sorted([x for x in kept if x[2] == fi], key=lambda x: -x[1])
-            num = (cartela.numero(frases[fi][2]) or destaques.get(fi)) if not own else None
+            num = cartela.numero(frases[fi][2]) or destaques.get(fi)
             for j in range(n):
-                livres = [x for x in own if x[0] != last and uso.get(x[0], 0) < 2]
+                livres = [x for x in own if x[0] != last and usos(x[0]) < 2]
                 if livres:
                     esc = livres[0]
                     own.remove(esc)
                     c = esc[0]
                 else:
-                    resto = [x for x in kept if x[0] != last] or kept
-                    resto = sorted(resto, key=lambda x: (uso.get(x[0], 0) >= 3, used.get(x[0], 0), uso.get(x[0], 0),
-                                                         -x[1]))
+                    def lim(x):
+                        return 1 if x[0].name.startswith(("px_", "pb_")) else 2
+                    frescas = [x for x in kept if x[0] != last and usos(x[0]) < lim(x)]
+                    resto = frescas or [x for x in kept if x[0] != last] or kept
+                    resto = sorted(resto, key=lambda x: (used.get(x[0], 0), usos(x[0]), -x[1]))
                     c = resto[0][0]
-                    # sem foto própria e a melhor opção já cansou de aparecer: número da frase na tela
-                    cansada = (uso.get(c, 0) >= 2 or used.get(c, 0) >= 1
-                               or (c.name.startswith(("px_", "pb_")) and uso.get(c, 0) >= 1))
+                    cansada = not frescas or used.get(c, 0) >= 1
+                    # sem foto própria e nada novo para mostrar: o destaque da frase vira cartela
                     if num and cansada:
-                        card = work / f"{name}_num_{bi:02d}_{fi:02d}.jpg"
+                        card = work / f"{name}_num_{bi:02d}_{fi:02d}_{j}.jpg"
                         try:
                             cartela.fazer(num, b.get("titulo_capitulo", "") or assunto, card, vertical=vertical)
                             clip = st._photo_clip(card)
@@ -215,9 +245,9 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
                             print(f"  cartela falhou: {e}", flush=True)
                             clip = None
                         if clip:
-                            c, num = clip, None  # um número por frase
+                            c, num = clip, None  # uma cartela por frase
                 used[c] = used.get(c, 0) + 1
-                uso[c] = uso.get(c, 0) + 1
+                uso[chave(c)] = usos(c) + 1
                 last = c
                 plan.append([starts[bi] + s0 + j * step, starts[bi] + s0 + (j + 1) * step, c])
         log(f"  bloco {bi+1}: {len(cand)} cenas achadas, {len(kept)} aprovadas "
@@ -276,7 +306,8 @@ def main():
 
     # 2. vídeo longo
     log("montando vídeo longo...")
-    trilha = render.escolher_musica(ROOT / "assets" / "music", seed=len(hist))
+    trilha = render.escolher_musica(ROOT / "assets" / "music",
+                                    seed=len(hist) + sum(map(ord, str(topic))))
     log(f"trilha: {trilha.stem if trilha else 'nenhuma'}")
     video, total, starts, credits = make_video(sc["blocos"], ch, work, LONG, "video", a.offline, seed=len(hist),
                                                main_query=sc.get("busca_principal"))

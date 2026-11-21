@@ -96,7 +96,9 @@ def avaliar(image_path, frases, assunto):
               "outra marca atual) = no máximo 4.\n"
               "- Logotipo, faixa, cartaz ou texto de outra coisa, ou sem relação = 0 a 2.\n"
               "- Droga, planta de maconha, arma, sangue, nudez ou rosto de celebridade sem ligação direta com a frase = 0.\n"
-              'Responda só JSON: {"frase": 0, "nota": 0, "mostra": "o que a imagem mostra em até 6 palavras"}')
+              'Se aparecer uma pessoa famosa reconhecível (político, atleta, artista), escreva o nome dela em "famoso"; '
+              'senão deixe "".\n'
+              'Responda só JSON: {"frase": 0, "nota": 0, "famoso": "", "mostra": "o que a imagem mostra em até 6 palavras"}')
     data = _ask(img, prompt)
     if isinstance(data, list):  # às vezes o modelo devolve [ {...} ]
         data = next((d for d in data if isinstance(d, dict)), None)
@@ -110,6 +112,12 @@ def avaliar(image_path, frases, assunto):
         nota = float(data.get("nota", 0))
     except (TypeError, ValueError):
         return None, None
+    famoso = str(data.get("famoso") or "").strip().lower()
+    if famoso:
+        texto = " ".join(frases).lower() + " " + assunto.lower()
+        partes = [p for p in famoso.replace("-", " ").split() if len(p) > 3]
+        if not any(p in texto for p in partes):
+            nota = 0.0  # rosto famoso que a narração não cita
     return nota, max(0, min(len(frases) - 1, fi))
 
 
