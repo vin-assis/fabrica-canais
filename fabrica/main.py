@@ -276,6 +276,8 @@ def main():
 
     # 2. vídeo longo
     log("montando vídeo longo...")
+    trilha = render.escolher_musica(ROOT / "assets" / "music", seed=len(hist))
+    log(f"trilha: {trilha.stem if trilha else 'nenhuma'}")
     video, total, starts, credits = make_video(sc["blocos"], ch, work, LONG, "video", a.offline, seed=len(hist),
                                                main_query=sc.get("busca_principal"))
     shutil.move(str(video), out_dir / "video.mp4")
@@ -310,7 +312,8 @@ def main():
             credits["__fotos__"] += cr.pop("__fotos__", [])
             credits.update(cr)
             shorts_meta.append({"arquivo": f"short_{i+1}.mp4", "titulo": s["titulo"], "duracao_s": round(d, 1),
-                                "legenda": s.get("legenda", "")})
+                                "legenda": s.get("legenda", ""),
+                                "credito_musica": render.credito_musica(ch["idioma"].startswith("pt"))})
 
     # 5. descrição final
     pt = ch["idioma"].startswith("pt")
@@ -333,6 +336,8 @@ def main():
         desc += ("\n\nFotos do Wikimedia Commons: " if pt else "\n\nPhotos from Wikimedia Commons: ") + "; ".join(autores[:40]) + "."
     if credits:
         desc += "\n\nVídeos: Pixabay e Pexels." if pt else "\n\nFootage: Pixabay and Pexels."
+    if render.MUSICA:
+        desc += "\n\n" + render.credito_musica(pt)
     desc += ("\n\nNarração com voz sintética. Roteiro feito a partir das fontes listadas acima."
              if pt else "\n\nNarrated with a synthetic voice. Script based on the sources listed above.")
     if ia_total:

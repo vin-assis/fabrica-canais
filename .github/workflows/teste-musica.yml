@@ -1,0 +1,31 @@
+name: Teste trilhas
+on: workflow_dispatch
+jobs:
+  teste:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar e mixar
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          mkdir -p assets/music
+          grep -v '^#' config/musicas.txt | while read -r t; do
+            [ -z "$t" ] && continue
+            u="https://incompetech.com/music/royalty-free/mp3-royaltyfree/$(echo "$t" | sed 's/ /%20/g').mp3"
+            curl -fsSL --retry 2 -o "assets/music/$t.mp3" "$u" && echo "ok: $t $(stat -c%s "assets/music/$t.mp3")" || echo "falhou: $t"
+          done
+          python3 -m pip install -q -r requirements.txt
+          python3 - <<'PY'
+          import subprocess, json
+          from pathlib import Path
+          from fabrica import render
+          w = Path("/tmp/t"); w.mkdir()
+          subprocess.run(["ffmpeg","-v","error","-y","-f","lavfi","-i","sine=frequency=220:duration=20","-af","volume=0.3","-ar","24000","-ac","1",str(w/"n.wav")],check=True)
+          subprocess.run(["ffmpeg","-v","error","-y","-f","lavfi","-i","color=c=gray:s=640x360:d=20:r=30",str(w/"v.mp4")],check=True)
+          (w/"s.ass").write_text("[Script Info]\nScriptType: v4.00+\n\n[Events]\nFormat: Layer, Start, End, Style, Text\n")
+          m = render.escolher_musica("assets/music", seed=3)
+          print("trilha:", m)
+          print(render.credito_musica(True))
+          render.final_mix(w/"v.mp4", w/"n.wav", w/"s.ass", w/"o.mp4", total=20)
+          print("volume final:", render.loudness(w/"o.mp4"))
+          PY

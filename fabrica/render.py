@@ -179,15 +179,46 @@ def final_mix(video, narration, subs, out, music_dir=None, total=None):
         return _final_mix(video, narration, subs, out, music_dir, total, norm="volume=2.0,alimiter=limit=0.89")
 
 
+MUSICA = None  # trilha escolhida para o vídeo inteiro (longo e Shorts usam a mesma)
+
+
+def escolher_musica(music_dir, seed=0):
+    """Escolhe uma trilha da pasta (sempre a mesma para o mesmo seed). Devolve o caminho ou None."""
+    global MUSICA
+    lista = sorted(Path(music_dir).glob("*.mp3")) if music_dir and Path(music_dir).exists() else []
+    lista = [m for m in lista if m.stat().st_size > 200_000]
+    MUSICA = lista[seed % len(lista)] if lista else None
+    return MUSICA
+
+
+def credito_musica(pt=True):
+    if not MUSICA:
+        return ""
+    t = MUSICA.stem
+    return (f'Música: "{t}" Kevin MacLeod (incompetech.com), licença Creative Commons: By Attribution 4.0 '
+            f"https://creativecommons.org/licenses/by/4.0/" if pt else
+            f'Music: "{t}" Kevin MacLeod (incompetech.com), licensed under Creative Commons: By Attribution 4.0 '
+            f"https://creativecommons.org/licenses/by/4.0/")
+
+
 def _final_mix(video, narration, subs, out, music_dir, total, norm):
-    music = sorted(Path(music_dir).glob("*.mp3")) if music_dir and Path(music_dir).exists() else []
+    music = MUSICA
     cmd = ["ffmpeg", "-v", "error", "-y", "-i", str(video), "-i", str(narration)]
     subs_f = str(subs).replace(":", "\\:")
     vf = f"[0:v]ass={subs_f}:fontsdir={FONTS}[v]"
     if music:
-        cmd += ["-stream_loop", "-1", "-i", str(random.choice(music))]
-        af = ("[2:a]aresample=48000,volume=0.10,afade=t=in:d=2[m];[1:a]aresample=48000[n];"
-              f"[n][m]amix=inputs=2:duration=first:dropout_transition=0,{norm}[a]")
+        cmd += ["-stream_loop", "-1", "-i", str(music)]
+        fim = max((total or 60) - 3, 1)
+        # trilha a -29 LUFS: uns 15 dB abaixo da voz (-14), sem dividir o volume da narração no amix
+        try:
+            ganho = -29 - (loudness(music)[0] or -16)
+        except Exception:  # noqa: BLE001
+            ganho = -13
+        af = (f"[2:a]aresample=48000,volume={ganho:.1f}dB,"
+              f"afade=t=in:d=2,afade=t=out:st={fim:.2f}:d=3[m];"
+              "[1:a]aresample=48000,aformat=sample_fmts=fltp,{norm}[n];"
+              "[n][m]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,"
+              "alimiter=limit=0.84:level=disabled[a]").replace("{norm}", norm)
     else:
         af = f"[1:a]aresample=48000,aformat=sample_fmts=fltp,{norm}[a]"
     cmd += ["-filter_complex", f"{vf};{af}", "-map", "[v]", "-map", "[a]",

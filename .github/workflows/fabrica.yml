@@ -74,6 +74,24 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      - name: Cache das trilhas
+        uses: actions/cache@v4
+        with:
+          path: assets/music
+          key: musicas-${{ hashFiles('config/musicas.txt') }}
+
+      - name: Baixar trilhas (Kevin MacLeod, CC BY 4.0)
+        run: |
+          mkdir -p assets/music
+          grep -v '^#' config/musicas.txt | while read -r t; do
+            [ -z "$t" ] && continue
+            f="assets/music/$t.mp3"
+            [ -s "$f" ] && continue
+            u="https://incompetech.com/music/royalty-free/mp3-royaltyfree/$(echo "$t" | sed 's/ /%20/g').mp3"
+            curl -fsSL --retry 2 -o "$f" "$u" && echo "ok: $t" || { echo "falhou: $t"; rm -f "$f"; }
+          done
+          ls -la assets/music
+
       - name: Instalar ferramentas
         run: |
           for i in 1 2 3; do sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null && break || sleep 20; done
