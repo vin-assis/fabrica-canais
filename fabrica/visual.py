@@ -127,12 +127,12 @@ def conferir(image_path, narracao, assunto):
     return nota
 
 
-def gerar(prompt, out_path, vertical=False):
+def gerar(prompt, out_path, vertical=False, estilo=None, ratio=None):
     """Gera uma imagem com IA. Devolve o caminho ou None (sem cobrança ativa, sem cota, erro)."""
     if _disabled["image"] or not _key() or os.getenv("IMAGENS_IA", "1") == "0":
         return None
-    ratio = "9:16" if vertical else "16:9"
-    full = (f"{prompt}. Editorial digital illustration in a painterly documentary style, muted period colors, "
+    ratio = ratio or ("9:16" if vertical else "16:9")
+    full = f"{prompt}. {estilo}" if estilo else (f"{prompt}. Editorial digital illustration in a painterly documentary style, muted period colors, "
             f"clearly a drawing and not a photograph. Generic anonymous people only, never a real or famous person. "
             f"Absolutely no written words, letters, numbers, signs, posters, newspapers or labels anywhere in the image; "
             f"no watermark, no logos, no brand names.")
