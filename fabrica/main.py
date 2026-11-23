@@ -101,7 +101,7 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
     limiar_video = float(os.getenv("NOTA_MINIMA_VIDEO", "8"))  # vídeo de banco é genérico: exige mais
     seg_scenes, ia_files, todas, uso = [], [], [], {}  # uso: quantas vezes cada cena já entrou no vídeo
     assunto = main_query or ""
-    ia_max = int(os.getenv("IA_MAX_IMAGENS", "3" if vertical else ("36" if len(blocks) >= 14 else "12")))
+    ia_max = int(os.getenv("IA_MAX_IMAGENS", "3" if vertical else ("60" if len(blocks) >= 10 else "24")))
 
     def src_of(c):
         return c.with_name(c.name.split(".")[0] + ".jpg") if c.name.startswith("cm_") else c
@@ -174,11 +174,16 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
                 if nota is not None and nota >= limiar:
                     kept.append([c, nota, fi])
         # IA só quando faltam cenas boas de verdade (menos de 2 no bloco)
-        want = 4 if len(blocks) >= 14 else 2  # vídeo longo gasta mais cenas por bloco
-        prompts = list(b.get("cenas_ia") or []) or [f"{assunto}: {b.get('titulo_capitulo', '')}"]
+        # com ilustração ligada: uma cena para cada 2 frases do bloco, para a ilustração vir antes da cartela
+        want = min(6, max(2, -(-len(frases) // 2))) if os.getenv("IMAGENS_IA", "0") != "0" else 2
+        # primeiro as frases que ficaram sem foto (a ilustração vai para elas), depois as cenas sugeridas pelo roteiro
+        sem = [i for i in range(len(textos)) if not any(x[2] == i for x in kept)]
+        prompts = [(f"{assunto}. Scene: {textos[i]}", i) for i in sem]
+        prompts += [(c, None) for c in (b.get("cenas_ia") or [])]
+        prompts = prompts or [(f"{assunto}: {b.get('titulo_capitulo', '')}", None)]
         k = 0
-        while len(kept) < want and len(ia_files) < ia_max and not offline and k < 3:
-            pr = prompts[k % len(prompts)]
+        while len(kept) < want and len(ia_files) < ia_max and not offline and k < 6:
+            pr, alvo = prompts[k % len(prompts)]
             img = visual.gerar(pr, work / f"{name}_ia_{bi:02d}_{k}.png", vertical=vertical)
             k += 1
             if not img:
@@ -186,7 +191,7 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
             clip = st._photo_clip(img)
             if clip:
                 ia_files.append(img)
-                kept.append([clip, 7, None])
+                kept.append([clip, 7, alvo])
         if not kept:  # nada aprovado: o melhor que sobrou, para não ficar tela vazia
             kept = sorted(rejected, key=lambda x: -x[1])[:2] or [[x, 0, None] for x in st.clips("abstract", 1)]
         todas += [x for x in kept if not x[0].name.startswith(("px_", "pb_")) and "_ia_" not in x[0].name]

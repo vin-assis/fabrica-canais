@@ -134,7 +134,8 @@ def gerar(prompt, out_path, vertical=False):
     ratio = "9:16" if vertical else "16:9"
     full = (f"{prompt}. Editorial digital illustration in a painterly documentary style, muted period colors, "
             f"clearly a drawing and not a photograph. Generic anonymous people only, never a real or famous person. "
-            f"No text, no captions, no watermark, no logos, no brand names.")
+            f"Absolutely no written words, letters, numbers, signs, posters, newspapers or labels anywhere in the image; "
+            f"no watermark, no logos, no brand names.")
     body = {"contents": [{"role": "user", "parts": [{"text": full}]}],
             "generationConfig": {"responseModalities": ["IMAGE"], "imageConfig": {"aspectRatio": ratio,
                                                                                    "imageSize": "1K"}}}
