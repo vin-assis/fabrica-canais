@@ -39,7 +39,32 @@ PEDIDOS = {
                   "yellow", "16:9"),
 }
 
+JUCA = ("JUCA, a 6-year-old Brazilian boy with warm brown skin, short curly dark-brown hair, yellow t-shirt, "
+        "blue denim overalls, orange sneakers")
+VOVO = ("GRANDMA (vovó), plump smiling elderly Brazilian woman with warm brown skin, grey hair in a bun, round red "
+        "glasses, floral apron over a coral dress")
+FUNDO = "isolated on a perfectly plain pure white background, no shadow on the floor, nothing else in the image"
+
+RIG = {
+    "juca_rig": (f"Full-body {JUCA}, standing straight facing the viewer, arms relaxed down at his sides slightly "
+                 f"away from the body, legs slightly apart, mouth closed in a gentle smile, eyes open, "
+                 f"centered, whole body visible with margin, {FUNDO}", "9:16"),
+    "vovo_rig": (f"Full-body {VOVO}, standing straight facing the viewer, arms relaxed down at her sides slightly "
+                 f"away from the body, mouth closed in a gentle smile, eyes open, centered, whole body visible "
+                 f"with margin, {FUNDO}", "9:16"),
+    "cozinha_vazia": ("Empty cozy colorful Brazilian home kitchen interior seen from the front, wooden table in the "
+                      "foreground lower third, window with curtains, shelves with jars, stove, warm afternoon "
+                      "light, no people, no characters, lots of open space in the center", "16:9"),
+    "prop_pao": (f"A single big golden loaf of homemade bread, {FUNDO}", "1:1"),
+    "prop_farinha": (f"A single paper bag of flour with a little flour spilling, {FUNDO}", "1:1"),
+    "prop_leite": (f"A single glass bottle of milk, {FUNDO}", "1:1"),
+    "prop_ovos": (f"Three brown eggs together, {FUNDO}", "1:1"),
+    "prop_tigela": (f"A single colorful ceramic mixing bowl with a wooden spoon, {FUNDO}", "1:1"),
+}
+
 if __name__ == "__main__":
+    if os.getenv("CONJUNTO") == "rig":
+        PEDIDOS = RIG
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "ficha")
     out.mkdir(parents=True, exist_ok=True)
     os.environ["IMAGENS_IA"] = "1"

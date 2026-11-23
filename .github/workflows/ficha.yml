@@ -1,5 +1,10 @@
 name: Ficha de personagens
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      conjunto:
+        required: false
+        default: ""
 permissions:
   contents: write
 jobs:
@@ -14,10 +19,11 @@ jobs:
       - name: Gerar
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CONJUNTO: ${{ github.event.inputs.conjunto }}
         run: python -m fabrica.ficha ficha
       - name: Publicar
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ficha-juca-$(date +%Y%m%d-%H%M)"
+          TAG="ficha-juca-${{ github.event.inputs.conjunto }}-$(date +%Y%m%d-%H%M)"
           gh release create "$TAG" ficha/*.png --title "Ficha da família do Juca" --notes "Desenhos para aprovação"
