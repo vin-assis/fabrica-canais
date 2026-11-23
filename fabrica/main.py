@@ -101,7 +101,7 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
     limiar_video = float(os.getenv("NOTA_MINIMA_VIDEO", "8"))  # vídeo de banco é genérico: exige mais
     seg_scenes, ia_files, todas, uso = [], [], [], {}  # uso: quantas vezes cada cena já entrou no vídeo
     assunto = main_query or ""
-    ia_max = int(os.getenv("IA_MAX_IMAGENS", "3" if vertical else "12"))
+    ia_max = int(os.getenv("IA_MAX_IMAGENS", "3" if vertical else ("36" if len(blocks) >= 14 else "12")))
 
     def src_of(c):
         return c.with_name(c.name.split(".")[0] + ".jpg") if c.name.startswith("cm_") else c
@@ -174,10 +174,10 @@ def make_video(blocks, ch, work, size, name, offline, vertical=False, hook=None,
                 if nota is not None and nota >= limiar:
                     kept.append([c, nota, fi])
         # IA só quando faltam cenas boas de verdade (menos de 2 no bloco)
-        want = 2
+        want = 4 if len(blocks) >= 14 else 2  # vídeo longo gasta mais cenas por bloco
         prompts = list(b.get("cenas_ia") or []) or [f"{assunto}: {b.get('titulo_capitulo', '')}"]
         k = 0
-        while len(kept) < want and len(ia_files) < ia_max and not offline and k < 2:
+        while len(kept) < want and len(ia_files) < ia_max and not offline and k < 3:
             pr = prompts[k % len(prompts)]
             img = visual.gerar(pr, work / f"{name}_ia_{bi:02d}_{k}.png", vertical=vertical)
             k += 1

@@ -132,8 +132,9 @@ def gerar(prompt, out_path, vertical=False):
     if _disabled["image"] or not _key() or os.getenv("IMAGENS_IA", "1") == "0":
         return None
     ratio = "9:16" if vertical else "16:9"
-    full = (f"{prompt}. Photorealistic documentary photograph, natural light, realistic details, "
-            f"no text, no captions, no watermark, no logos.")
+    full = (f"{prompt}. Editorial digital illustration in a painterly documentary style, muted period colors, "
+            f"clearly a drawing and not a photograph. Generic anonymous people only, never a real or famous person. "
+            f"No text, no captions, no watermark, no logos, no brand names.")
     body = {"contents": [{"role": "user", "parts": [{"text": full}]}],
             "generationConfig": {"responseModalities": ["IMAGE"], "imageConfig": {"aspectRatio": ratio,
                                                                                    "imageSize": "1K"}}}
