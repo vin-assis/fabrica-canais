@@ -25,5 +25,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ficha-juca-${{ github.event.inputs.conjunto }}-$(date +%Y%m%d-%H%M)"
+          TAG="ficha-dico-${{ github.event.inputs.conjunto }}-$(date +%Y%m%d-%H%M)"
           gh release create "$TAG" ficha/*.png --title "Ficha da família do Juca" --notes "Desenhos para aprovação"
