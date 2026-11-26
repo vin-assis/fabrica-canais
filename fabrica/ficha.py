@@ -89,11 +89,34 @@ FAMILIA_RIG = {
                    f"a traffic light and a crosswalk, sunny day, {CENA}", "16:9"),
 }
 
+ESTILO_ADULTO = ("Clean modern 2D vector cartoon character design for a YouTube channel aimed at teenagers and young "
+                 "adults: flat colors, subtle shading, slightly stylized adult proportions (not chibi, not childish), "
+                 "expressive faces, soft dark outlines, contemporary urban Brazilian look. No text, no letters, no "
+                 "logos, no watermark.")
+CRESCI = {
+    "leo_rig": _pose("LEO, a 22-year-old Brazilian young man with light-brown skin, short wavy black hair with a "
+                     "small fade, light stubble, wearing an oversized mustard-yellow hoodie, black joggers and white "
+                     "sneakers, a little backpack strap on one shoulder, friendly slightly clueless expression"),
+    "tati_rig": _pose("TATI, a 27-year-old Brazilian young woman with dark-brown skin, shoulder-length box braids "
+                      "tied half up, small round glasses, wearing a denim jacket over a white t-shirt, olive cargo "
+                      "pants and black boots, confident slightly ironic smile", "her"),
+    "ape_leo": ("Small simple rented studio apartment interior in Brazil, almost empty: mattress on the floor, a "
+                "plastic chair, cardboard boxes, a small kitchenette, window with city buildings outside, "
+                "late afternoon light, no people", "16:9"),
+    "corredor_predio": ("Hallway of a simple Brazilian apartment building with two facing doors, tiled floor, "
+                        "fluorescent light, mailbox, no people", "16:9"),
+    "refeitorio": ("Office break room with long table, microwave, water cooler and a window, modern Brazilian "
+                   "company, no people", "16:9"),
+}
+
 if __name__ == "__main__":
     if os.getenv("CONJUNTO") == "rig":
         PEDIDOS = RIG
     elif os.getenv("CONJUNTO") == "familia":
         PEDIDOS = FAMILIA_RIG
+    elif os.getenv("CONJUNTO") == "cresci":
+        PEDIDOS = CRESCI
+        ESTILO = ESTILO_ADULTO
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "ficha")
     out.mkdir(parents=True, exist_ok=True)
     os.environ["IMAGENS_IA"] = "1"
