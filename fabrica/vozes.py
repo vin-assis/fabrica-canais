@@ -29,9 +29,9 @@ PAUSA = 0.35  # segundos entre falas
 
 ESTILO = {
     "LEO": "Fale em português do Brasil, sotaque paulista neutro. Voz de um rapaz de 22 anos, "
-           "animado, impulsivo, meio atrapalhado, com timing de comédia. Leia exatamente o texto, sem acrescentar nada:",
+           "animado, impulsivo, meio atrapalhado, com timing de comédia.",
     "TATI": "Fale em português do Brasil, sotaque paulista neutro. Voz de uma mulher de 27 anos, "
-            "segura, calma, explica com leve ironia e simpatia, sem tom de professora. Leia exatamente o texto, sem acrescentar nada:",
+            "segura, calma, explica com leve ironia e simpatia, sem tom de professora.",
 }
 
 PARES_TESTE = [
@@ -58,7 +58,11 @@ class TTSErro(Exception):
 def _gera(texto, voz, estilo):
     key = os.environ["GEMINI_API_KEY"]
     body = {
-        "contents": [{"parts": [{"text": f"{estilo}\n{texto}"}]}],
+        "contents": [{"parts": [{"text":
+            "### NOTAS DE DIREÇÃO (não ler em voz alta)\n"
+            f"{estilo}\n\n"
+            "### TRANSCRIÇÃO (ler só isto, exatamente como está)\n"
+            f"{texto}"}]}],
         "generationConfig": {
             "responseModalities": ["AUDIO"],
             "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voz}}},
