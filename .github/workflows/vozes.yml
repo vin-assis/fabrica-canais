@@ -1,0 +1,32 @@
+name: Vozes Cresci
+on:
+  workflow_dispatch:
+    inputs:
+      modo:
+        required: false
+        default: "teste"
+      episodio:
+        required: false
+        default: ""
+permissions:
+  contents: write
+jobs:
+  vozes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - run: pip install -q -r requirements.txt faster-whisper
+      - name: Gerar
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python -m fabrica.vozes ${{ github.event.inputs.modo }} ${{ github.event.inputs.episodio }}
+      - name: Publicar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="vozes-${{ github.event.inputs.modo }}${{ github.event.inputs.episodio }}-$(date +%Y%m%d-%H%M)"
+          gh release create "$TAG" vozes/*.mp3 vozes/*.json --title "Vozes Cresci, Ferrou!" --notes "Audição de vozes"
