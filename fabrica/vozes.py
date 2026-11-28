@@ -104,7 +104,11 @@ def _transcreve(path):
     if _whisper is None:
         from faster_whisper import WhisperModel
         _whisper = WhisperModel(os.getenv("WHISPER_MODEL", "small"), device="cpu", compute_type="int8")
-    segs, _ = _whisper.transcribe(str(path), language="pt", beam_size=5, vad_filter=False)
+    import numpy as np
+    raw = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", str(path), "-ac", "1", "-ar", "16000",
+                          "-f", "s16le", "-"], capture_output=True, check=True).stdout
+    audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+    segs, _ = _whisper.transcribe(audio, language="pt", beam_size=5, vad_filter=False)
     return " ".join(s.text for s in segs)
 
 
