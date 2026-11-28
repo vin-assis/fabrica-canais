@@ -116,8 +116,19 @@ def _transcreve(path):
     return " ".join(s.text for s in segs)
 
 
+def _num_por_extenso(t):
+    try:
+        from num2words import num2words
+    except ImportError:
+        return t
+    t = re.sub(r"(\d+),(\d+)", lambda m: f"{m[1]} vírgula {m[2]}", t)
+    t = re.sub(r"(\d+)\.(\d{3})", r"\1\2", t)
+    t = t.replace("%", " por cento")
+    return re.sub(r"\d+", lambda m: " " + num2words(int(m[0]), lang="pt_BR") + " ", t)
+
+
 def _norm(t):
-    t = unicodedata.normalize("NFD", t.lower())
+    t = unicodedata.normalize("NFD", _num_por_extenso(t).lower())
     t = "".join(c for c in t if unicodedata.category(c) != "Mn")
     return re.findall(r"[a-z0-9]+", t)
 
@@ -129,7 +140,7 @@ def confere(texto, ouvido):
     faltando = []
     for op, i1, i2, _, _ in sm.get_opcodes():
         if op in ("delete", "replace"):
-            faltando += a[i1:i2]
+            faltando += [w for w in a[i1:i2] if len(w) > 1]  # "o", "a", "e" somem na fala corrida
     return round(sm.ratio(), 3), faltando
 
 
@@ -161,7 +172,7 @@ def fala(texto, voz, personagem, out, tentativas=4, nota_min=0.9):
         print(f"  [{personagem}/{voz}] t{n+1} nota {nota} faltando {faltando}", flush=True)
         if melhor is None or nota > melhor[0]["nota"]:
             melhor = (res, pcm)
-        if nota >= nota_min and not faltando:
+        if nota >= nota_min and len(faltando) <= 1:
             res["ok"] = True
             return res, pcm
     res, pcm = melhor

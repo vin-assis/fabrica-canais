@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
-      - run: pip install -q -r requirements.txt faster-whisper
+      - run: pip install -q -r requirements.txt faster-whisper num2words
       - name: Gerar
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

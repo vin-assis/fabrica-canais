@@ -1,0 +1,81 @@
+{
+ "titulo": "Paguei o mínimo do cartão e a dívida quase dobrou",
+ "vozes": {
+  "LEO": "Achird",
+  "TATI": "Sulafat"
+ },
+ "falas": [
+  [
+   "LEO",
+   "Eu paguei. Eu PAGUEI. Como é que a fatura ficou maior?"
+  ],
+  [
+   "LEO",
+   "Oitocentos? Tranquilo. Olha aqui: pagamento mínimo. O próprio banco tá me dando um desconto."
+  ],
+  [
+   "TATI",
+   "Deixa eu adivinhar. Pagou o mínimo."
+  ],
+  [
+   "LEO",
+   "Era uma opção da fatura!"
+  ],
+  [
+   "TATI",
+   "Era uma opção de empréstimo. Tudo o que você não paga da fatura vira crédito rotativo, e o rotativo é o empréstimo mais caro do país."
+  ],
+  [
+   "TATI",
+   "Em junho deste ano, a taxa média chegou a quatrocentos e quarenta e dois vírgula quatro por cento ao ano, segundo o Banco Central."
+  ],
+  [
+   "LEO",
+   "Quatrocentos por cento? Isso nem existe."
+  ],
+  [
+   "TATI",
+   "Existe, e você está pagando."
+  ],
+  [
+   "TATI",
+   "Agora a parte boa: desde janeiro de dois mil e vinte e quatro tem uma lei que trava essa bola de neve. Os juros e encargos do rotativo e do parcelamento da fatura não podem passar de cem por cento do valor original da dívida."
+  ],
+  [
+   "TATI",
+   "Então uma dívida de mil reais pode chegar a dois mil. Mais que isso, não."
+  ],
+  [
+   "LEO",
+   "Ah, então eu tô protegido."
+  ],
+  [
+   "TATI",
+   "Protegido de pagar o triplo. Ainda pode pagar o dobro."
+  ],
+  [
+   "TATI",
+   "E tem mais: o banco não deixa você no rotativo pra sempre. Depois de um mês, ele tem que te oferecer o parcelamento, que tem juros menores, mas continua sendo juros."
+  ],
+  [
+   "TATI",
+   "Três passos. Primeiro: pare de usar o cartão até a dívida acabar. Se não, você paga juros e ainda compra mais."
+  ],
+  [
+   "TATI",
+   "Segundo: troque a dívida cara por uma mais barata. Pergunte ao banco o parcelamento com o menor juro e compare com empréstimo pessoal ou consignado. Olhe o Custo Efetivo Total, não a parcela."
+  ],
+  [
+   "TATI",
+   "Terceiro: confira se o teto está sendo respeitado. Some o que já foi cobrado de juros e encargos. Se passar do valor original, reclame no banco e depois no consumidor ponto gov ponto br."
+  ],
+  [
+   "TATI",
+   "Não precisa cortar, era só parar de usar."
+  ],
+  [
+   "LEO",
+   "Eu me conheço."
+  ]
+ ]
+}
