@@ -60,12 +60,13 @@ def _gera(texto, voz, estilo):
     body = {
         "contents": [{"parts": [{"text":
             "### NOTAS DE DIREÇÃO (não ler em voz alta)\n"
+            "Idioma: português do Brasil (pt-BR), com pronúncia brasileira nativa. Nunca em inglês.\n"
             f"{estilo}\n\n"
             "### TRANSCRIÇÃO (ler só isto, exatamente como está)\n"
             f"{texto}"}]}],
         "generationConfig": {
             "responseModalities": ["AUDIO"],
-            "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voz}}},
+            "speechConfig": {"languageCode": "pt-BR", "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voz}}},
         },
     }
     erros = []
@@ -112,8 +113,10 @@ def _transcreve(path):
     raw = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", str(path), "-ac", "1", "-ar", "16000",
                           "-f", "s16le", "-"], capture_output=True, check=True).stdout
     audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
-    segs, _ = _whisper.transcribe(audio, language="pt", beam_size=5, vad_filter=False)
-    return " ".join(s.text for s in segs)
+    # sem forçar o idioma: se a voz sair em inglês, a transcrição sai em inglês e a fala é reprovada
+    segs, info = _whisper.transcribe(audio, beam_size=5, vad_filter=False)
+    texto = " ".join(s.text for s in segs)
+    return texto, info.language, round(info.language_probability, 2)
 
 
 def _num_por_extenso(t):
@@ -165,11 +168,13 @@ def fala(texto, voz, personagem, out, tentativas=4, nota_min=0.9):
         pcm, modelo = _gera(texto, voz, ESTILO[personagem])
         pcm = _apara(pcm)
         _salva_wav(pcm, out)
-        ouvido = _transcreve(out)
+        ouvido, idioma, prob = _transcreve(out)
         nota, faltando = confere(texto, ouvido)
+        if idioma != "pt":
+            nota = 0.0
         res = {"texto": texto, "ouvido": ouvido.strip(), "nota": nota, "faltando": faltando,
-               "tentativa": n + 1, "modelo": modelo, "dur": round(len(pcm) / 2 / RATE, 2)}
-        print(f"  [{personagem}/{voz}] t{n+1} nota {nota} faltando {faltando}", flush=True)
+               "idioma": idioma, "prob_idioma": prob, "tentativa": n + 1, "modelo": modelo, "dur": round(len(pcm) / 2 / RATE, 2)}
+        print(f"  [{personagem}/{voz}] t{n+1} idioma {idioma} ({prob}) nota {nota} faltando {faltando}", flush=True)
         if melhor is None or nota > melhor[0]["nota"]:
             melhor = (res, pcm)
         if nota >= nota_min and len(faltando) <= 1:
